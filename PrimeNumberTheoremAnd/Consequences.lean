@@ -1,7 +1,9 @@
 import Architect
 import Mathlib.NumberTheory.Harmonic.Bounds
 import PrimeNumberTheoremAnd.Mathlib.Analysis.SpecialFunctions.Log.Basic
+import PrimeNumberTheoremAnd.Defs
 import PrimeNumberTheoremAnd.Wiener
+
 
 set_option lang.lemmaCmd true
 
@@ -911,12 +913,6 @@ theorem pi_alt' :
   all_goals ring
 
 
-blueprint_comment /--
-Let $p_n$ denote the $n^{th}$ prime.
--/
-
-noncomputable abbrev nth_prime (n : ℕ) : ℕ := Nat.nth Nat.Prime n
-
 lemma pi_nth_prime (n : ℕ) :
     primeCounting (nth_prime n) = n + 1 := by
   rw [primeCounting, primeCounting', count_nth_succ_of_infinite infinite_setOf_prime]
@@ -927,7 +923,7 @@ lemma tendsto_nth_prime_atTop : Tendsto nth_prime atTop atTop :=
 lemma pi_nth_prime_asymp :
     (fun n ↦ (nth_prime n) / (log (nth_prime n))) ~[atTop] (fun (n : ℕ) ↦ (n : ℝ)) := by
   trans (fun (n : ℕ) ↦ ( n + 1 : ℝ))
-  · have : Tendsto (fun n ↦ ((Nat.nth Nat.Prime n) : ℝ)) atTop atTop := by
+  · have : Tendsto (fun n ↦ ((nth_prime n) : ℝ)) atTop atTop := by
       apply tendsto_natCast_atTop_iff.mpr tendsto_nth_prime_atTop
     convert pi_alt'.comp_tendsto this |>.symm
     simp only [Function.comp_apply, floor_natCast]
@@ -949,7 +945,7 @@ lemma log_nth_prime_asymp : (fun n ↦ log (nth_prime n)) ~[atTop] (fun n ↦ lo
     symm
     apply IsEquivalent.sub_isLittleO (by rfl)
     apply IsLittleO.comp_tendsto isLittleO_log_id_atTop
-    have : Tendsto (fun n ↦ ((Nat.nth Nat.Prime n) : ℝ)) atTop atTop := by
+    have : Tendsto (fun n ↦ ((nth_prime n) : ℝ)) atTop atTop := by
       apply tendsto_natCast_atTop_iff.mpr tendsto_nth_prime_atTop
     apply tendsto_log_atTop.comp this
 
@@ -977,8 +973,8 @@ lemma nth_prime_asymp : (fun n ↦ ((nth_prime n) : ℝ)) ~[atTop] (fun n ↦ n 
   -/)
   (latexEnv := "proposition")]
 theorem pn_asymptotic : ∃ c : ℕ → ℝ, c =o[atTop] (fun _ ↦ (1 : ℝ)) ∧
-    ∀ n : ℕ, n > 1 → Nat.nth Nat.Prime n = (1 + c n) * n * log n := by
-  let c : ℕ → ℝ := fun n ↦ (Nat.nth Nat.Prime n) / (n * log n) - 1
+    ∀ n : ℕ, n > 1 → nth_prime n = (1 + c n) * n * log n := by
+  let c : ℕ → ℝ := fun n ↦ (nth_prime n) / (n * log n) - 1
   refine ⟨c, ?_, ?_⟩
   swap
   · intro n hn
@@ -1008,8 +1004,8 @@ theorem pn_asymptotic : ∃ c : ℕ → ℝ, c =o[atTop] (fun _ ↦ (1 : ℝ)) �
   (proof := /-- Easy consequence of preceding proposition. -/)
   (latexEnv := "corollary")]
 theorem pn_pn_plus_one : ∃ c : ℕ → ℝ, c =o[atTop] (fun _ ↦ (1 : ℝ)) ∧
-    ∀ n : ℕ, Nat.nth Nat.Prime (n + 1) - Nat.nth Nat.Prime n = (c n) * Nat.nth Nat.Prime n := by
-  use (fun n => (Nat.nth Nat.Prime (n+1) - Nat.nth Nat.Prime n) / Nat.nth Nat.Prime n)
+    ∀ n : ℕ, nth_prime (n + 1) - nth_prime n = (c n) * nth_prime n := by
+  use (fun n => (nth_prime (n+1) - nth_prime n) / nth_prime n)
   refine ⟨?_, ?_⟩
   · obtain ⟨k, k_o1, p_n_eq⟩ := pn_asymptotic
     simp only [isLittleO_one_iff]
@@ -1171,7 +1167,7 @@ theorem pn_pn_plus_one : ∃ c : ℕ → ℝ, c =o[atTop] (fun _ ↦ (1 : ℝ)) 
         rw [div_self (denom_nonzero n)]
       simp
   · intro n
-    have nth_nonzero: Nat.nth Nat.Prime n ≠ 0 := by
+    have nth_nonzero: nth_prime n ≠ 0 := by
       exact Nat.Prime.ne_zero (prime_nth_prime n)
     simp [nth_nonzero]
 
@@ -1664,9 +1660,6 @@ lemma sum_mobius_mul_floor (x : ℝ) (hx : 1 ≤ x) :
     positivity
   · simpa [moebius_mul_coe_zeta, one_apply]
 
-noncomputable abbrev Psi (x : ℝ) : ℝ := ψ x
-
-noncomputable def M (x : ℝ) : ℝ := ∑ n ∈ Iic ⌊x⌋₊, (μ n : ℝ)
 
 noncomputable def mu_log : ArithmeticFunction ℝ :=
     ⟨(fun n ↦ μ n * ArithmeticFunction.log n), (by simp)⟩
@@ -1683,10 +1676,6 @@ lemma mu_log_mul_zeta : mu_log * ArithmeticFunction.zeta = -Λ := by
 
 lemma mu_log_eq_mu_mul_neg_lambda : mu_log = μ * -Λ := by
   rw [← mu_log_mul_zeta, mul_comm, mul_assoc, coe_zeta_mul_coe_moebius, mul_one]
-
-lemma ArithmeticFunction.neg_apply {R : Type*} [NegZeroClass R] {f : ArithmeticFunction R} {n : ℕ}
-    : (-f) n = -f n := by
-  rfl
 
 lemma sum_mu_Lambda (x : ℝ) : ∑ n ∈ Iic ⌊x⌋₊, (μ n : ℝ) * log n = - ∑ k ∈ Iic ⌊x⌋₊, (μ k : ℝ) * Psi (x/k) := by
   rw [Iic_eq_Icc, bot_eq_zero, ← add_sum_Ioc_eq_sum_Icc (by simp), ← add_sum_Ioc_eq_sum_Icc (by simp)]
@@ -2439,15 +2428,16 @@ blueprint_comment /--
 -/
 
 @[blueprint
+  "chebyshev-asymptotic-pnt"
   (title := "Prime number theorem in AP")
   (statement := /--
   If $a\ (q)$ is a primitive residue class, then one has
   $$ \sum_{p \leq x: p = a\ (q)} \log p = \frac{x}{\phi(q)} + o(x).$$
   -/)
   (proof := /--
-  This is a routine modification of the proof of Theorem \ref{chebyshev_asymptotic}.
+  This is a routine modification of the proof of Theorem \ref{chebyshev-asymptotic}.
   -/)
-  (proofUses := ["chebyshev_asymptotic"])
+  (proofUses := ["chebyshev-asymptotic"])
   (latexEnv := "theorem")]
 theorem chebyshev_asymptotic_pnt
     {q : ℕ} {a : ℕ} (hq : q ≥ 1) (ha : a.Coprime q) (ha' : a < q) :
@@ -2520,9 +2510,9 @@ theorem chebyshev_asymptotic_pnt
   (statement := /-- Any primitive residue class contains an infinite number of primes. -/)
   (proof := /--
   If this were not the case, then the sum $\sum_{p \leq x: p = a\ (q)} \log p$
-  would be bounded in $x$, contradicting Theorem \ref{chebyshev_asymptotic_pnt}.
+  would be bounded in $x$, contradicting Theorem \ref{chebyshev-asymptotic-pnt}.
   -/)
-  (proofUses := ["chebyshev_asymptotic_pnt"])
+  (proofUses := ["chebyshev-asymptotic-pnt"])
   (latexEnv := "corollary")]
 theorem dirichlet_thm {q : ℕ} {a : ℕ} (hq : q ≥ 1) (ha : Nat.Coprime a q) (ha' : a < q) :
     Infinite { p // p.Prime ∧ p % q = a } := by
