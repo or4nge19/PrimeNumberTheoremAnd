@@ -518,7 +518,7 @@ lemma integral_phi_le_Cφ_mul {A : ℝ} (hA : 0 ≤ A) :
           have hK : (∫ (t : ℝ) in A..(2 * A), s t ∂volume) ≤ K := by
             -- Ensure both sides use the same unfolded integrand to avoid `simp` rewriting only one side.
             simpa [hKdef, K, s] using hle_K
-          -- `∫_{A}^{2A} s ≤ K` and `K ≤ (Cφ - log 2 - 1)/4`; package as `Cφ*A` bound.
+          -- `∫_{A}^{2A} s ≤ K` and `K ≤ (Cφ - log 2 - 1)/4`; expresse as `Cφ*A` bound.
           have : (∫ (t : ℝ) in A..(2 * A), s t ∂volume) ≤ (4 * K + 1) * A := by
             have hA_le4 : A ≤ 4 := le_trans hA_le_two (by norm_num)
             -- crude: `∫ ≤ K` and `K ≤ (4K+1)*A` for `A ≥ 1/4`
@@ -870,4 +870,3 @@ lemma exists_radius_Ioc_sum_mul_phi_div_le_Cφ_mul_sum_avoid
 
 end LogSingularity
 end Complex.Hadamard
-

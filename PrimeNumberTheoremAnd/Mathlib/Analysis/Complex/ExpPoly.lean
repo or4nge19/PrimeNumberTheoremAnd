@@ -27,7 +27,7 @@ open scoped Topology
 ### Borel–Carathéodory bounds (wrapper around `PrimeNumberTheoremAnd`)
 -/
 
-/-- Borel–Carathéodory bound on a disk, packaged in the style needed for Hadamard’s theorem. -/
+/-- Borel–Carathéodory bound on a disk, expressed in the style needed for Hadamard’s theorem. -/
 theorem borel_caratheodory_bound {f : ℂ → ℂ} {r R M : ℝ}
     (hf_anal : AnalyticOnNhd ℂ f (Metric.closedBall 0 R))
     (hr : 0 < r) (hR : r < R) (hM : 0 < M)

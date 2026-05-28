@@ -1123,7 +1123,7 @@ lemma weierstrassFactor_div_ne_zero_on_ball_of_not_mem_fiberFinset
 /-!
 ## The fiber finite product has the expected order at `z₀`
 
-This packages the finite multiplicity calculation for the specific finset corresponding to the fiber
+This expresses the finite multiplicity calculation for the specific finset corresponding to the fiber
 `{p | divisorZeroIndex₀_val p = z₀}`.
 -/
 
@@ -2718,7 +2718,7 @@ theorem analyticOrderNatAt_divisorCanonicalProduct_eq_fiber_card
       ht2.congr' heq_punct.symm
     exact tendsto_nhds_unique ht1 ht2'
 
-  -- package as `∀ᶠ z in 𝓝 z₀, ...` using a ball neighborhood
+  -- expresse as `∀ᶠ z in 𝓝 z₀, ...` using a ball neighborhood
   have hfac : ∀ᶠ z in 𝓝 z₀, F z = (z - z₀) ^ k • q z := by
     have hball1 : Metric.ball z₀ 1 ∈ 𝓝 z₀ := Metric.ball_mem_nhds z₀ (by norm_num)
     have hball1' : ∀ᶠ z in 𝓝 z₀, z ∈ Metric.ball z₀ 1 :=

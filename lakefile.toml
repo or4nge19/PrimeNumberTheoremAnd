@@ -26,4 +26,8 @@ name = "checkdecls"
 git = "https://github.com/PatrickMassot/checkdecls.git"
 
 [[lean_lib]]
+name = "Chebotarev"
+roots = ["Chebotarev26a"]
+
+[[lean_lib]]
 name = "PrimeNumberTheoremAnd"

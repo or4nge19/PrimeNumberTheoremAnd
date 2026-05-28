@@ -9,7 +9,7 @@ import Mathlib.Analysis.Calculus.Deriv.Pow
 /-!
 ## Log-singularity bounds for Hadamard/Cartan arguments
 
-This file packages a small analytic inequality used in the “probabilistic radius / minimum-modulus”
+This file expresses a small analytic inequality used in the “probabilistic radius / minimum-modulus”
 step of Tao’s Hadamard factorization proof:
 
 \[
