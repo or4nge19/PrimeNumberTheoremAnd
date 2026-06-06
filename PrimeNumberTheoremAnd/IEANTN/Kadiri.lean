@@ -2,8 +2,9 @@ import Architect
 import PrimeNumberTheoremAnd.Defs
 import PrimeNumberTheoremAnd.IEANTN.ZetaDefinitions
 import PrimeNumberTheoremAnd.IEANTN.HadamardLogDerivative
+import PrimeNumberTheoremAnd.Mathlib.NumberTheory.LSeries.RiemannZetaHadamard
 import Mathlib.Analysis.SpecialFunctions.Gamma.Digamma
-import Mathlib.NumberTheory.LSeries.RiemannZeta
+import PrimeNumberTheoremAnd.Mathlib.NumberTheory.LSeries.RiemannZeta
 
 blueprint_comment /--
 \section{An explicit zero-free region for \texorpdfstring{$\zeta$}{zeta}}\label{kadiri-sec}
@@ -193,7 +194,8 @@ Three sublemmas (\ref{kadiri-laplace-ibp}, \ref{kadiri-test-fn-contDiff} +
      + \tfrac{1}{w^2} \int_0^d e^{-wy} f''(y)\, dy$;
   using $f'(0) = f'(d) = 0$ from $(H_1)$ kills both boundary terms, leaving
   $F_2(w)/w^2$. To be formalised. -/)
-  (latexEnv := "lemma")]
+  (latexEnv := "lemma")
+  (discussion := 1483)]
 theorem laplaceTransform_ibp {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
     (_hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d))
     (_hf_supp : tsupport f ⊆ .Ico 0 d)
@@ -211,7 +213,8 @@ theorem laplaceTransform_ibp {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
   (statement := /-- The $s$-parametrised test function
   $\varphi(y;\, s) := (f(0) - f(y))\, e^{-y s}\, \mathbf{1}_{y \geq 0}$ used to derive
   \ref{kadiri-identity-16} from \ref{kadiri-thm-3-1-q1}. -/)
-  (latexEnv := "definition")]
+  (latexEnv := "definition")
+  (discussion := 1484)]
 noncomputable def kadiriTestFn (f : ℝ → ℝ) (s : ℂ) : ℝ → ℂ := fun y ↦
   if 0 ≤ y then ((f 0 : ℂ) - (f y : ℂ)) * exp (-s * (y : ℂ)) else 0
 
@@ -231,7 +234,8 @@ noncomputable def kadiriTestFn (f : ℝ → ℝ) (s : ℂ) : ℝ → ℂ := fun 
   $(f(0) - f(d)) e^{-sd} = f(0) e^{-sd}$ (using $f(d) = 0$) and
   $-f'(d) e^{-sd} - s(f(0) - f(d)) e^{-sd} = -s f(0) e^{-sd}$ (using $f(d) = f'(d) = 0$),
   matching the right-limits. Hence $\varphi$ is $C^1$ globally. To be formalised. -/)
-  (latexEnv := "lemma")]
+  (latexEnv := "lemma")
+  (discussion := 1484)]
 theorem kadiriTestFn_contDiff {d : ℝ} (_hd : 0 < d) {f : ℝ → ℝ}
     (_hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d))
     (_hf_supp : tsupport f ⊆ .Ico 0 d)
@@ -258,7 +262,8 @@ theorem kadiriTestFn_contDiff {d : ℝ} (_hd : 0 < d) {f : ℝ → ℝ}
   derivative with an extra factor $|s|$; both are $O(e^{-(1/2 + b) x})$ as $x \to +\infty$
   precisely when $\Re s - 1/2 \geq 1/2 + b$, i.e.\ $b \leq \Re s - 1$. Take any
   $0 < b < \Re s - 1$. To be formalised. -/)
-  (latexEnv := "lemma")]
+  (latexEnv := "lemma")
+  (discussion := 1485)]
 theorem kadiriTestFn_decay {d : ℝ} {f : ℝ → ℝ} (_hf_supp : tsupport f ⊆ .Ico 0 d)
     {s : ℂ} (_hs : 1 < s.re) :
     ∃ b > 0,
@@ -283,7 +288,8 @@ theorem kadiriTestFn_decay {d : ℝ} {f : ℝ → ℝ} (_hf_supp : tsupport f �
   $\Re(s + z) > 0$; $\int_0^{\infty} f(y)\, e^{-(s+z) y}\, dy = F(s + z)$ unconditionally
   since $\mathrm{supp}\, f \subseteq [0, d]$ makes the integral compactly-supported. To be
   formalised. -/)
-  (latexEnv := "lemma")]
+  (latexEnv := "lemma")
+  (discussion := 1486)]
 theorem kadiriTestFn_laplaceTransform {d : ℝ} (_hd : 0 < d) {f : ℝ → ℝ}
     (_hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d))
     (_hf_supp : tsupport f ⊆ .Ico 0 d)
@@ -382,7 +388,8 @@ private theorem identity_16_complex {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
                                             - \sum_n \Lambda(n) f(\log n)/n^s$, solving for
   $\sum_n \Lambda(n) f(\log n)/n^s$, substituting the $\Phi$ values, and taking real parts,
   yields the right-hand side of (16). To be formalised. -/)
-  (latexEnv := "lemma")]
+  (latexEnv := "lemma")
+  (discussion := 1488)]
 theorem identity_16 {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
     (hf_nonneg : ∀ t, 0 ≤ f t)
     (hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d))
@@ -536,7 +543,8 @@ theorem backlund_bound : riemannZeta.Riemann_vonMangoldt_bound 0.137 0.443 6.1 :
   $\dfrac{1}{y^2} \cdot d \cdot \max(1, e^{-\sigma_0 d}) \cdot \|f''\|_\infty$ (using
   $\mathrm{supp}\, f'' \subseteq [0, d]$). Both depend only on $\sigma_0, \sigma_1, d, f$;
   take $C$ to be their sum. To be formalised. -/)
-  (latexEnv := "lemma")]
+  (latexEnv := "lemma")
+  (discussion := 1487)]
 theorem laplaceTransform_re_decay {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
     (hf_nonneg : ∀ t, 0 ≤ f t)
     (hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d))
@@ -634,7 +642,8 @@ Assembled from \ref{kadiri-identity-16}, \ref{kadiri-re-inner-eq}, and
   For the identity, combine \ref{kadiri-identity-16} (the (16)-form on $\Re s > 1$) with
   \ref{kadiri-re-inner-eq} (which substitutes the $T_1$ form for the $f(0)$-coefficient
   $\Re$-expression, also on $\Re s > 1$). The result is a two-line `rw` chain. -/)
-  (latexEnv := "proposition")]
+  (latexEnv := "proposition")
+  (discussion := 1478)]
 theorem prop_2_1 {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
     (hf_nonneg : ∀ t, 0 ≤ f t)
     (hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d))
@@ -717,7 +726,8 @@ noncomputable def Δ2 (f : ℝ → ℝ) (κ δ : ℝ) (s : ℂ) : ℝ :=
   multiply the latter by $\kappa$, subtract, and use the identity
   $n^{-s} - \kappa n^{-(s + \delta)} = n^{-s} (1 - \kappa n^{-\delta})$ to combine the LHS,
   while the definitions of $\Delta_1, \Delta_2, D$ combine the corresponding RHS terms. -/)
-  (latexEnv := "lemma")]
+  (latexEnv := "lemma")
+  (discussion := 1478)]
 theorem eq_5 {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ} (hf_nonneg : ∀ t, 0 ≤ f t)
     (hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d)) (hf_supp : tsupport f ⊆ .Ico 0 d)
     (hf_d : f d = 0) (hf_deriv_0 : deriv f 0 = 0) (hf_deriv_d : deriv f d = 0)

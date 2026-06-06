@@ -1,8 +1,9 @@
 import PrimeNumberTheoremAnd.IEANTN.ZetaDefinitions
+import PrimeNumberTheoremAnd.Mathlib.NumberTheory.LSeries.RiemannZetaHadamard
 import Mathlib.Analysis.Calculus.LogDeriv
 import Mathlib.Analysis.SpecialFunctions.Gamma.Digamma
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Deriv
-import Mathlib.NumberTheory.LSeries.RiemannZeta
+import PrimeNumberTheoremAnd.Mathlib.NumberTheory.LSeries.RiemannZeta
 
 /-!
 # Hadamard Log-Derivative Bridges for Kadiri
