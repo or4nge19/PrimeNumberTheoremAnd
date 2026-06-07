@@ -3,6 +3,7 @@ import PrimeNumberTheoremAnd.Defs
 import PrimeNumberTheoremAnd.IEANTN.ZetaDefinitions
 import PrimeNumberTheoremAnd.IEANTN.HadamardLogDerivative
 import PrimeNumberTheoremAnd.Mathlib.NumberTheory.LSeries.RiemannZetaHadamard
+import PrimeNumberTheoremAnd.Mathlib.NumberTheory.LSeries.WeilGuinand
 import Mathlib.Analysis.SpecialFunctions.Gamma.Digamma
 import PrimeNumberTheoremAnd.Mathlib.NumberTheory.LSeries.RiemannZeta
 
@@ -31,13 +32,12 @@ open ArithmeticFunction hiding log
 `vonMangoldt` (with notation `Λ`), `Complex.Gamma` / `Complex.digamma`, and `riemannZeta`
 are all in Mathlib. The set of zeros of `ζ` (and the rect-filtered variant
 `riemannZeta.zeroes_rect`) are already defined in `ZetaDefinitions.lean`; the non-trivial zeros
-are `riemannZeta.zeroes_rect (Set.Ioo 0 1) Set.univ`. A general Laplace transform is not yet in
-Mathlib, so we introduce it ad hoc for the (compactly-supported) Kadiri test functions. -/
+are `riemannZeta.zeroes_rect (Set.Ioo 0 1) Set.univ`. -/
 
 /-- Laplace transform of a real-valued function `f`:
 `F(s) = ∫₀^∞ e^{-s · t} f(t) dt`. -/
-noncomputable def laplaceTransform (f : ℝ → ℝ) (s : ℂ) : ℂ :=
-  ∫ t in (.Ioi (0:ℝ)), exp (-s * (t : ℂ)) * (f t : ℂ) ∂volume
+noncomputable abbrev laplaceTransform (f : ℝ → ℝ) (s : ℂ) : ℂ :=
+  RiemannZeta.WeilGuinand.laplaceTransform (fun t : ℝ => (f t : ℂ)) s
 
 /-! ## Helper: finite support of `f ∘ log` -/
 
@@ -60,6 +60,289 @@ private lemma summable_f_log {d : ℝ} {f : ℝ → ℝ} (hf_supp : tsupport f �
   refine (f_log_support_finite hf_supp).subset fun n hn ↦ ?_
   simp only [Function.mem_support] at hn ⊢
   exact fun h ↦ hn (by rw [h, Complex.ofReal_zero, mul_zero])
+
+/-- A function with topological support contained in `[0, d)` vanishes to the left of `0`. -/
+private lemma eq_zero_of_lt_zero {d x : ℝ} {f : ℝ → ℝ}
+    (hf_supp : tsupport f ⊆ .Ico 0 d) (hx : x < 0) :
+    f x = 0 := by
+  by_contra hfx
+  have hxmem : x ∈ Set.Ico (0 : ℝ) d := hf_supp (subset_tsupport f hfx)
+  exact not_le_of_gt hx hxmem.1
+
+/-- A function with topological support contained in `[0, d)` vanishes on and to the right of `d`. -/
+private lemma eq_zero_of_ge_d {d x : ℝ} {f : ℝ → ℝ}
+    (hf_supp : tsupport f ⊆ .Ico 0 d) (hx : d ≤ x) :
+    f x = 0 := by
+  by_contra hfx
+  have hxmem : x ∈ Set.Ico (0 : ℝ) d := hf_supp (subset_tsupport f hfx)
+  exact not_lt_of_ge hx hxmem.2
+
+/-- The derivative of a compactly supported test function vanishes strictly to the right of `d`. -/
+private lemma deriv_eq_zero_of_gt_d {d x : ℝ} {f : ℝ → ℝ}
+    (hf_supp : tsupport f ⊆ .Ico 0 d) (hx : d < x) :
+    deriv f x = 0 := by
+  by_contra hfx
+  have hxmem : x ∈ Set.Ico (0 : ℝ) d := hf_supp (support_deriv_subset hfx)
+  exact not_lt_of_ge hx.le hxmem.2
+
+/-- The second derivative also vanishes strictly to the right of `d`. -/
+private lemma deriv_deriv_eq_zero_of_gt_d {d x : ℝ} {f : ℝ → ℝ}
+    (hf_supp : tsupport f ⊆ .Ico 0 d) (hx : d < x) :
+    deriv (deriv f) x = 0 := by
+  have hEventually : (fun y ↦ deriv f y) =ᶠ[nhds x] (fun _ : ℝ ↦ 0) := by
+    filter_upwards [Ioi_mem_nhds hx] with y hy
+    exact deriv_eq_zero_of_gt_d hf_supp hy
+  simpa using hEventually.deriv_eq
+
+/-- The real-valued Laplace integrand vanishes outside the compact support interval. -/
+private lemma laplace_integrand_eq_zero_of_ge_d {d x : ℝ} {f : ℝ → ℝ}
+    (hf_supp : tsupport f ⊆ .Ico 0 d) (w : ℂ) (hx : d ≤ x) :
+    (f x : ℂ) * exp (-w * (x : ℂ)) = 0 := by
+  simp [eq_zero_of_ge_d hf_supp hx]
+
+/-- A half-line integral is a compact integral when the integrand vanishes to the right of `d`. -/
+private lemma integral_Ioi_eq_integral_Ioc_of_forall_eq_zero_of_lt {d : ℝ} {g : ℝ → ℂ}
+    (hg : ∀ x : ℝ, d < x → g x = 0) :
+    (∫ x in Set.Ioi (0 : ℝ), g x ∂volume) =
+      ∫ x in Set.Ioc (0 : ℝ) d, g x ∂volume := by
+  have hEqOn : Set.EqOn g ((Set.Ioc (0 : ℝ) d).indicator g) (Set.Ioi (0 : ℝ)) := by
+    intro x hx
+    by_cases hxd : x ≤ d
+    · exact (Set.indicator_of_mem (show x ∈ Set.Ioc (0 : ℝ) d from ⟨hx, hxd⟩) g).symm
+    · have hdx : d < x := lt_of_not_ge hxd
+      have hxnot : x ∉ Set.Ioc (0 : ℝ) d := fun hxIoc ↦ hxd hxIoc.2
+      rw [Set.indicator_of_notMem hxnot]
+      simp [hg x hdx]
+  calc
+    ∫ x in Set.Ioi (0 : ℝ), g x ∂volume =
+        ∫ x in Set.Ioi (0 : ℝ), (Set.Ioc (0 : ℝ) d).indicator g x ∂volume := by
+          exact MeasureTheory.setIntegral_congr_fun measurableSet_Ioi hEqOn
+    _ = ∫ x in Set.Ioi (0 : ℝ) ∩ Set.Ioc (0 : ℝ) d, g x ∂volume := by
+          rw [MeasureTheory.setIntegral_indicator measurableSet_Ioc]
+    _ = ∫ x in Set.Ioc (0 : ℝ) d, g x ∂volume := by
+          have hset : Set.Ioi (0 : ℝ) ∩ Set.Ioc (0 : ℝ) d = Set.Ioc (0 : ℝ) d := by
+            ext x
+            simp
+          rw [hset]
+
+/-- Under the compact-support hypothesis, the half-line Laplace integral is a compact integral. -/
+private lemma laplaceTransform_eq_integral_Ioc {d : ℝ} {f : ℝ → ℝ}
+    (hf_supp : tsupport f ⊆ .Ico 0 d) (w : ℂ) :
+    laplaceTransform f w =
+      ∫ x in Set.Ioc (0 : ℝ) d, (f x : ℂ) * exp (-w * (x : ℂ)) ∂volume := by
+  let g : ℝ → ℂ := fun x ↦ (f x : ℂ) * exp (-w * (x : ℂ))
+  exact integral_Ioi_eq_integral_Ioc_of_forall_eq_zero_of_lt fun x hx ↦ by
+    simp [eq_zero_of_ge_d hf_supp hx.le]
+
+/-- Interval-integral form of the compactly supported Laplace transform. -/
+private lemma laplaceTransform_eq_intervalIntegral {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
+    (hf_supp : tsupport f ⊆ .Ico 0 d) (w : ℂ) :
+    laplaceTransform f w =
+      ∫ x in (0 : ℝ)..d, (f x : ℂ) * exp (-w * (x : ℂ)) ∂volume := by
+  rw [laplaceTransform_eq_integral_Ioc hf_supp w, intervalIntegral.integral_of_le hd.le]
+
+/-- Compact integral form for the Laplace transform of `f''`. -/
+private lemma laplaceTransform_deriv_deriv_eq_integral_Ioc {d : ℝ} {f : ℝ → ℝ}
+    (hf_supp : tsupport f ⊆ .Ico 0 d) (w : ℂ) :
+    laplaceTransform (fun u ↦ deriv (𝕜 := ℝ) (deriv (𝕜 := ℝ) f) u) w =
+      ∫ x in Set.Ioc (0 : ℝ) d,
+        ((deriv (𝕜 := ℝ) (deriv (𝕜 := ℝ) f) x : ℝ) : ℂ) *
+          exp (-w * (x : ℂ)) ∂volume := by
+  let g : ℝ → ℂ := fun x ↦
+    ((deriv (𝕜 := ℝ) (deriv (𝕜 := ℝ) f) x : ℝ) : ℂ) * exp (-w * (x : ℂ))
+  exact integral_Ioi_eq_integral_Ioc_of_forall_eq_zero_of_lt fun x hx ↦ by
+    simp [deriv_deriv_eq_zero_of_gt_d hf_supp hx]
+
+/-- Interval-integral form for the Laplace transform of `f''`. -/
+private lemma laplaceTransform_deriv_deriv_eq_intervalIntegral {d : ℝ} (hd : 0 < d)
+    {f : ℝ → ℝ} (hf_supp : tsupport f ⊆ .Ico 0 d) (w : ℂ) :
+    laplaceTransform (fun u ↦ deriv (𝕜 := ℝ) (deriv (𝕜 := ℝ) f) u) w =
+      ∫ x in (0 : ℝ)..d,
+        ((deriv (𝕜 := ℝ) (deriv (𝕜 := ℝ) f) x : ℝ) : ℂ) *
+          exp (-w * (x : ℂ)) ∂volume := by
+  rw [laplaceTransform_deriv_deriv_eq_integral_Ioc hf_supp w,
+    intervalIntegral.integral_of_le hd.le]
+
+/-- Derivative of the exponential kernel in the Laplace transform. -/
+private lemma hasDerivAt_exp_neg_mul (w : ℂ) (x : ℝ) :
+    HasDerivAt (fun y : ℝ ↦ exp (-w * (y : ℂ))) (-w * exp (-w * (x : ℂ))) x := by
+  have hofReal : HasDerivAt (fun y : ℝ ↦ (y : ℂ)) (1 : ℂ) x := by
+    simpa using (HasDerivAt.ofReal_comp (hasDerivAt_id x))
+  have hlin : HasDerivAt (fun y : ℝ ↦ -w * (y : ℂ)) (-w) x := by
+    simpa using hofReal.const_mul (-w)
+  simpa [mul_comm, mul_left_comm, mul_assoc] using hlin.cexp
+
+/-- A primitive of the Laplace exponential kernel, valid when `w ≠ 0`. -/
+private lemma hasDerivAt_laplaceKernelPrimitive {w : ℂ} (hw : w ≠ 0) (x : ℝ) :
+    HasDerivAt (fun y : ℝ ↦ (-w⁻¹) * exp (-w * (y : ℂ)))
+      (exp (-w * (x : ℂ))) x := by
+  have h := (hasDerivAt_exp_neg_mul w x).const_mul (-w⁻¹)
+  convert h using 1
+  field_simp [hw]
+
+/-- A `C¹` real function on `[0, d]` has interval-integrable complexified derivative. -/
+private lemma intervalIntegrable_deriv_complex_of_contDiffOn_Icc {d : ℝ} (hd : 0 < d)
+    {f : ℝ → ℝ} (hf_C1 : ContDiffOn ℝ 1 f (Set.Icc 0 d)) :
+    IntervalIntegrable (fun x : ℝ ↦ ((deriv f x : ℝ) : ℂ)) volume 0 d := by
+  have hcontWithin : ContinuousOn
+      (fun x : ℝ ↦ ((derivWithin f (Set.Icc 0 d) x : ℝ) : ℂ)) (Set.Icc 0 d) :=
+    continuous_ofReal.comp_continuousOn
+      (hf_C1.continuousOn_derivWithin (uniqueDiffOn_Icc hd) (by norm_num))
+  have hintWithinIoo : IntegrableOn
+      (fun x : ℝ ↦ ((derivWithin f (Set.Icc 0 d) x : ℝ) : ℂ)) (Set.Ioo 0 d) volume :=
+    hcontWithin.integrableOn_Icc.mono_set Set.Ioo_subset_Icc_self
+  have hEqOn : Set.EqOn
+      (fun x : ℝ ↦ ((derivWithin f (Set.Icc 0 d) x : ℝ) : ℂ))
+      (fun x : ℝ ↦ ((deriv f x : ℝ) : ℂ)) (Set.Ioo 0 d) := by
+    intro x hx
+    change ((derivWithin f (Set.Icc 0 d) x : ℝ) : ℂ) = ((deriv f x : ℝ) : ℂ)
+    rw [derivWithin_of_mem_nhds (Icc_mem_nhds hx.1 hx.2)]
+  rw [intervalIntegrable_iff_integrableOn_Ioo_of_le hd.le]
+  exact hintWithinIoo.congr_fun hEqOn measurableSet_Ioo
+
+/-- One integration by parts for the compactly supported Laplace transform. -/
+private lemma interval_laplace_ibp_once {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
+    (hf_C1 : ContDiffOn ℝ 1 f (Set.Icc 0 d)) (hf_d : f d = 0)
+    {w : ℂ} (hw : w ≠ 0) :
+    (∫ x in (0 : ℝ)..d, (f x : ℂ) * exp (-w * (x : ℂ)) ∂volume) =
+      (f 0 : ℂ) / w +
+        w⁻¹ * ∫ x in (0 : ℝ)..d, ((deriv f x : ℝ) : ℂ) *
+          exp (-w * (x : ℂ)) ∂volume := by
+  let v : ℝ → ℂ := fun x ↦ (-w⁻¹) * exp (-w * (x : ℂ))
+  let v' : ℝ → ℂ := fun x ↦ exp (-w * (x : ℂ))
+  have hu : ContinuousOn (fun x : ℝ ↦ (f x : ℂ)) (Set.uIcc (0 : ℝ) d) :=
+    by simpa [Set.uIcc_of_le hd.le] using
+      continuous_ofReal.comp_continuousOn hf_C1.continuousOn
+  have hv : ContinuousOn v (Set.uIcc (0 : ℝ) d) := by
+    fun_prop
+  have hu' : IntervalIntegrable (fun x : ℝ ↦ ((deriv f x : ℝ) : ℂ)) volume 0 d :=
+    intervalIntegrable_deriv_complex_of_contDiffOn_Icc hd hf_C1
+  have hv' : IntervalIntegrable v' volume 0 d := by
+    have hv'cont : ContinuousOn v' (Set.uIcc (0 : ℝ) d) := by
+      fun_prop
+    exact hv'cont.intervalIntegrable
+  have huu' : ∀ x ∈ Set.Ioo (min (0 : ℝ) d) (max (0 : ℝ) d),
+      HasDerivAt (fun x : ℝ ↦ (f x : ℂ)) ((deriv f x : ℝ) : ℂ) x := by
+    intro x hx
+    have hx' : x ∈ Set.Ioo (0 : ℝ) d := by simpa [min_eq_left hd.le, max_eq_right hd.le] using hx
+    have hreal : HasDerivAt f (deriv f x) x :=
+      (hf_C1.differentiableOn (by norm_num)).hasDerivAt (Icc_mem_nhds hx'.1 hx'.2)
+    exact hreal.ofReal_comp
+  have hvv' : ∀ x ∈ Set.Ioo (min (0 : ℝ) d) (max (0 : ℝ) d), HasDerivAt v (v' x) x := by
+    intro x _hx
+    exact hasDerivAt_laplaceKernelPrimitive hw x
+  have hIBP := intervalIntegral.integral_mul_deriv_eq_deriv_mul_of_hasDerivAt
+    (u := fun x : ℝ ↦ (f x : ℂ)) (v := v)
+    (u' := fun x : ℝ ↦ ((deriv f x : ℝ) : ℂ)) (v' := v')
+    hu hv huu' hvv' hu' hv'
+  dsimp [v, v'] at hIBP ⊢
+  have hfactor :
+      (∫ x in (0 : ℝ)..d, ((deriv f x : ℝ) : ℂ) *
+          (-w⁻¹ * exp (-w * (x : ℂ))) ∂volume) =
+        -w⁻¹ * ∫ x in (0 : ℝ)..d, ((deriv f x : ℝ) : ℂ) *
+          exp (-w * (x : ℂ)) ∂volume := by
+    rw [← intervalIntegral.integral_const_mul]
+    apply intervalIntegral.integral_congr
+    intro x _hx
+    ring
+  rw [hfactor] at hIBP
+  simpa [hf_d, div_eq_mul_inv, mul_comm, mul_left_comm, mul_assoc] using hIBP
+
+/-- Away from one point, almost everywhere. -/
+private lemma ae_ne_volume (a : ℝ) : ∀ᵐ x : ℝ ∂volume, x ≠ a := by
+  filter_upwards [measure_eq_zero_iff_ae_notMem.mp (measure_singleton a)] with x hx
+  exact fun h ↦ hx (by simp [h])
+
+/-- The second integration-by-parts step, applied to the one-sided derivative of `f` on
+`[0, d]`.  This is the Kadiri/H1 formulation: endpoint derivatives are derivatives within the
+closed interval, while the integrals may still be written with the ordinary derivatives because
+the endpoints are null. -/
+private lemma interval_laplace_ibp_derivWithin {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
+    (hf_C2 : ContDiffOn ℝ 2 f (Set.Icc 0 d))
+    (hf_derivWithin_0 : derivWithin f (Set.Icc 0 d) 0 = 0)
+    (hf_derivWithin_d : derivWithin f (Set.Icc 0 d) d = 0)
+    {w : ℂ} (hw : w ≠ 0) :
+    (∫ x in (0 : ℝ)..d, ((deriv f x : ℝ) : ℂ) * exp (-w * (x : ℂ)) ∂volume) =
+      w⁻¹ * ∫ x in (0 : ℝ)..d, ((deriv (deriv f) x : ℝ) : ℂ) *
+        exp (-w * (x : ℂ)) ∂volume := by
+  let g : ℝ → ℝ := fun x ↦ derivWithin f (Set.Icc 0 d) x
+  have hg_C1 : ContDiffOn ℝ 1 g (Set.Icc 0 d) := by
+    simpa [g] using
+      hf_C2.derivWithin (uniqueDiffOn_Icc hd)
+        (by norm_num : (1 : WithTop ℕ∞) + 1 ≤ 2)
+  have hleft :
+      (∫ x in (0 : ℝ)..d, ((deriv f x : ℝ) : ℂ) * exp (-w * (x : ℂ)) ∂volume) =
+        ∫ x in (0 : ℝ)..d, ((g x : ℝ) : ℂ) * exp (-w * (x : ℂ)) ∂volume := by
+    apply intervalIntegral.integral_congr_ae
+    filter_upwards [ae_ne_volume 0, ae_ne_volume d] with x hx0 hxd hx
+    have hxIoc : x ∈ Set.Ioc (0 : ℝ) d := by
+      simpa [Set.uIoc_of_le hd.le] using hx
+    have hxIoo : x ∈ Set.Ioo (0 : ℝ) d :=
+      ⟨hxIoc.1, lt_of_le_of_ne hxIoc.2 hxd⟩
+    change ((deriv f x : ℝ) : ℂ) * exp (-w * (x : ℂ)) =
+      ((g x : ℝ) : ℂ) * exp (-w * (x : ℂ))
+    rw [show g x = deriv f x by
+      dsimp [g]
+      rw [derivWithin_of_mem_nhds (Icc_mem_nhds hxIoo.1 hxIoo.2)]]
+  have hright :
+      (∫ x in (0 : ℝ)..d, ((deriv g x : ℝ) : ℂ) * exp (-w * (x : ℂ)) ∂volume) =
+        ∫ x in (0 : ℝ)..d, ((deriv (deriv f) x : ℝ) : ℂ) *
+          exp (-w * (x : ℂ)) ∂volume := by
+    apply intervalIntegral.integral_congr_ae
+    filter_upwards [ae_ne_volume 0, ae_ne_volume d] with x hx0 hxd hx
+    have hxIoc : x ∈ Set.Ioc (0 : ℝ) d := by
+      simpa [Set.uIoc_of_le hd.le] using hx
+    have hxIoo : x ∈ Set.Ioo (0 : ℝ) d :=
+      ⟨hxIoc.1, lt_of_le_of_ne hxIoc.2 hxd⟩
+    have hg_eventually : g =ᶠ[nhds x] deriv f := by
+      refine (Set.EqOn.eventuallyEq_of_mem ?_ (Ioo_mem_nhds hxIoo.1 hxIoo.2))
+      intro y hy
+      dsimp [g]
+      rw [derivWithin_of_mem_nhds (Icc_mem_nhds hy.1 hy.2)]
+    change ((deriv g x : ℝ) : ℂ) * exp (-w * (x : ℂ)) =
+      ((deriv (deriv f) x : ℝ) : ℂ) * exp (-w * (x : ℂ))
+    rw [hg_eventually.deriv_eq]
+  have hibp := interval_laplace_ibp_once (d := d) (f := g) hd hg_C1 hf_derivWithin_d hw
+  calc
+    (∫ x in (0 : ℝ)..d, ((deriv f x : ℝ) : ℂ) * exp (-w * (x : ℂ)) ∂volume)
+        = ∫ x in (0 : ℝ)..d, ((g x : ℝ) : ℂ) * exp (-w * (x : ℂ)) ∂volume := hleft
+    _ = w⁻¹ * ∫ x in (0 : ℝ)..d, ((deriv g x : ℝ) : ℂ) *
+          exp (-w * (x : ℂ)) ∂volume := by
+      simpa [g, hf_derivWithin_0, div_eq_mul_inv, mul_comm, mul_left_comm, mul_assoc] using hibp
+    _ = w⁻¹ * ∫ x in (0 : ℝ)..d, ((deriv (deriv f) x : ℝ) : ℂ) *
+          exp (-w * (x : ℂ)) ∂volume := by
+      rw [hright]
+
+/-- Two integrations by parts on the compact interval `[0, d]`. -/
+private lemma interval_laplace_ibp_twice {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
+    (hf_C1 : ContDiffOn ℝ 1 f (Set.Icc 0 d))
+    (hf_C2 : ContDiffOn ℝ 2 f (Set.Icc 0 d))
+    (hf_d : f d = 0)
+    (hf_derivWithin_0 : derivWithin f (Set.Icc 0 d) 0 = 0)
+    (hf_derivWithin_d : derivWithin f (Set.Icc 0 d) d = 0)
+    {w : ℂ} (hw : w ≠ 0) :
+    (∫ x in (0 : ℝ)..d, (f x : ℂ) * exp (-w * (x : ℂ)) ∂volume) =
+      (f 0 : ℂ) / w +
+        (∫ x in (0 : ℝ)..d, ((deriv (deriv f) x : ℝ) : ℂ) *
+          exp (-w * (x : ℂ)) ∂volume) / w ^ 2 := by
+  rw [interval_laplace_ibp_once hd hf_C1 hf_d hw,
+    interval_laplace_ibp_derivWithin hd hf_C2 hf_derivWithin_0 hf_derivWithin_d hw]
+  field_simp [hw]
+
+/-- Half-line Laplace-transform form of the two-integration-by-parts identity. -/
+private lemma laplaceTransform_ibp_of_contDiffOn_two {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
+    (hf_C1 : ContDiffOn ℝ 1 f (Set.Icc 0 d))
+    (hf_C2 : ContDiffOn ℝ 2 f (Set.Icc 0 d))
+    (hf_supp : tsupport f ⊆ .Ico 0 d)
+    (hf_d : f d = 0)
+    (hf_derivWithin_0 : derivWithin f (Set.Icc 0 d) 0 = 0)
+    (hf_derivWithin_d : derivWithin f (Set.Icc 0 d) d = 0)
+    {w : ℂ} (hw : w ≠ 0) :
+    laplaceTransform f w =
+      (f 0 : ℂ) / w + laplaceTransform (fun u ↦ deriv (deriv f) u) w / w ^ 2 := by
+  rw [laplaceTransform_eq_intervalIntegral hd hf_supp w,
+    laplaceTransform_deriv_deriv_eq_intervalIntegral hd hf_supp w]
+  exact interval_laplace_ibp_twice hd hf_C1 hf_C2 hf_d hf_derivWithin_0 hf_derivWithin_d hw
 
 /-! ## Precursor results for Proposition 2.1
 
@@ -102,12 +385,10 @@ candidate value extracted from any no-monomial xi Hadamard polynomial is unique.
   derivative in both identities, and `0` is not among the nonzero divisor indices. -/)
   (latexEnv := "lemma")
   (discussion := 1474)]
-theorem existsUnique_hadamardB :
-    ∃! B : ℂ, ∃ P : Polynomial ℂ, P.degree ≤ 1 ∧
-      (∀ z : ℂ, riemannXi z =
-        Complex.exp (Polynomial.eval z P) *
-          Complex.Hadamard.divisorCanonicalProduct 1 riemannXi (Set.univ : Set ℂ) z) ∧
-      B = Polynomial.eval 0 P.derivative :=
+theorem existsUnique_hadamardB : ∃! B : ℂ, ∃ P : Polynomial ℂ, P.degree ≤ 1 ∧
+    (∀ z : ℂ, riemannXi z = Complex.exp (Polynomial.eval z P) *
+      Complex.Hadamard.divisorCanonicalProduct 1 riemannXi (Set.univ : Set ℂ) z) ∧
+    B = Polynomial.eval 0 P.derivative :=
   existsUnique_riemannXi_hadamard_polynomial_derivative_eval_zero
 
 /-- Kadiri's Hadamard constant `B`: the canonical value `P'(0)`, common to every degree-≤1
@@ -116,12 +397,10 @@ noncomputable def hadamardB : ℂ := existsUnique_hadamardB.exists.choose
 
 /-- The defining property of `hadamardB`: it is `P'(0)` for some degree-≤1 no-monomial xi
 Hadamard polynomial `P`. -/
-theorem hadamardB_spec :
-    ∃ P : Polynomial ℂ, P.degree ≤ 1 ∧
-      (∀ z : ℂ, riemannXi z =
-        Complex.exp (Polynomial.eval z P) *
-          Complex.Hadamard.divisorCanonicalProduct 1 riemannXi (Set.univ : Set ℂ) z) ∧
-      hadamardB = Polynomial.eval 0 P.derivative :=
+theorem hadamardB_spec :  ∃ P : Polynomial ℂ, P.degree ≤ 1 ∧ (∀ z : ℂ, riemannXi z =
+      Complex.exp (Polynomial.eval z P) *
+        Complex.Hadamard.divisorCanonicalProduct 1 riemannXi (Set.univ : Set ℂ) z) ∧
+    hadamardB = Polynomial.eval 0 P.derivative :=
   existsUnique_hadamardB.exists.choose_spec
 
 /-! ## The zeros of `ξ` are exactly the non-trivial zeros of `ζ`
@@ -383,11 +662,40 @@ theorem kadiri_thm_3_1_q1 {φ : ℝ → ℂ} (_hφ : ContDiff ℝ 1 φ)
         - ∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ), Φ (-ρ.val)
         - φ 0 * ((Real.log Real.pi : ℝ) : ℂ)
         + ∑' n : ℕ, ((Λ n : ℂ) / (n : ℂ)) * φ (-Real.log n)
-        + (1 / (2 * (Real.pi : ℂ) * I)) *
+        + (1 / (2 * (Real.pi : ℂ))) *
             ∫ t : ℝ,
               ((digamma ((1 / 2 + (t : ℂ) * I) / 2)).re : ℂ) *
                 Φ (-(1 / 2 + (t : ℂ) * I)) := by
   sorry
+
+/-- The displayed `q = 1` formula follows from the abstract Weil--Guinand formulation with the
+Riemann-zeta coefficients and the standard indexing of non-trivial zeros. -/
+theorem kadiri_thm_3_1_q1_of_QOneFormula {φ : ℝ → ℂ}
+    (hQ : RiemannZeta.WeilGuinand.QOneFormula φ
+      (RiemannZeta.WeilGuinand.laplaceTransform φ)
+      (fun n : ℕ => (Λ n : ℂ))
+      (fun n : ℕ => (Λ n : ℂ) / (n : ℂ))
+      (fun ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ) => ρ.val)) :
+    let Φ : ℂ → ℂ := fun z ↦ ∫ y in (.Ioi (0 : ℝ)), φ y * exp (-z * (y : ℂ)) ∂volume
+    (∑' n : ℕ, (Λ n : ℂ) * φ (Real.log n)) =
+      Φ (-1) + Φ 0
+        - ∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ), Φ (-ρ.val)
+        - φ 0 * ((Real.log Real.pi : ℝ) : ℂ)
+        + ∑' n : ℕ, ((Λ n : ℂ) / (n : ℂ)) * φ (-Real.log n)
+        + (1 / (2 * (Real.pi : ℂ))) *
+            ∫ t : ℝ,
+              ((digamma ((1 / 2 + (t : ℂ) * I) / 2)).re : ℂ) *
+                Φ (-(1 / 2 + (t : ℂ) * I)) := by
+  dsimp
+  have hΛ0 : (fun n : ℕ => (Λ n : ℂ)) 0 = 0 := by simp
+  have hΛref0 : (fun n : ℕ => (Λ n : ℂ) / (n : ℂ)) 0 = 0 := by simp
+  have hformula := hQ.formula
+  rw [RiemannZeta.WeilGuinand.primeSum_eq_tsum_nat hΛ0] at hformula
+  rw [RiemannZeta.WeilGuinand.qOneRHS] at hformula
+  rw [RiemannZeta.WeilGuinand.reflectedPrimeSum_eq_tsum_nat hΛref0] at hformula
+  simpa [RiemannZeta.WeilGuinand.zeroSum, RiemannZeta.WeilGuinand.gammaIntegral,
+    RiemannZeta.WeilGuinand.gammaIntegrand, RiemannZeta.WeilGuinand.laplaceTransform] using
+    hformula
 
 /-! ## Machinery for deriving (16) from Theorem 3.1
 
@@ -399,8 +707,10 @@ Three sublemmas (\ref{kadiri-laplace-ibp}, \ref{kadiri-test-fn-contDiff} +
 @[blueprint
   "kadiri-laplace-ibp"
   (title := "Two-integration-by-parts form of the Laplace transform")
-  (statement := /-- For $f$ satisfying the hypotheses $(H_1)$ of \ref{kadiri-prop-2-1}: for
-  every $w \in \mathbb{C}$ with $w \neq 0$,
+  (statement := /-- Formal integration-by-parts version of the $F$/$F_2$ relation used in
+  \ref{kadiri-prop-2-1}.  For $f$ satisfying the compact-support and endpoint hypotheses of
+  $(H_1)$, with endpoint derivatives interpreted within `[0,d]`, for every
+  $w \in \mathbb{C}$ with $w \neq 0$,
   $$ F(w) = \frac{f(0)}{w} + \frac{F_2(w)}{w^2}, $$
   where $F_2(w) := \int_0^d e^{-wy} f''(y)\, dy$ is the Laplace transform of $f''$. -/)
   (proof := /-- Two successive integrations by parts on
@@ -413,20 +723,23 @@ Three sublemmas (\ref{kadiri-laplace-ibp}, \ref{kadiri-test-fn-contDiff} +
   $\tfrac{1}{w} \int_0^d e^{-wy} f'(y)\, dy
    = \tfrac{f'(0)}{w^2} - \tfrac{f'(d) e^{-w d}}{w^2}
      + \tfrac{1}{w^2} \int_0^d e^{-wy} f''(y)\, dy$;
-  using $f'(0) = f'(d) = 0$ from $(H_1)$ kills both boundary terms, leaving
+  using the one-sided endpoint conditions $f'(0) = f'(d) = 0$ from $(H_1)$ kills both boundary
+  terms, leaving
   $F_2(w)/w^2$. To be formalised. -/)
   (latexEnv := "lemma")
   (discussion := 1483)]
 theorem laplaceTransform_ibp {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
-    (_hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d))
-    (_hf_supp : tsupport f ⊆ .Ico 0 d)
-    (_hf_d : f d = 0)
-    (_hf_deriv_0 : deriv f 0 = 0)
-    (_hf_deriv_d : deriv f d = 0)
-    {w : ℂ} (_hw : w ≠ 0) :
+    (hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d))
+    (hf_supp : tsupport f ⊆ .Ico 0 d)
+    (hf_d : f d = 0)
+    (hf_derivWithin_0 : derivWithin f (.Icc 0 d) 0 = 0)
+    (hf_derivWithin_d : derivWithin f (.Icc 0 d) d = 0)
+    {w : ℂ} (hw : w ≠ 0) :
     laplaceTransform f w =
       (f 0 : ℂ) / w + laplaceTransform (fun u ↦ deriv (deriv f) u) w / w ^ 2 := by
-  sorry
+  have hf_C1 : ContDiffOn ℝ 1 f (.Icc 0 d) := hf_C2.of_le (by norm_num)
+  exact laplaceTransform_ibp_of_contDiffOn_two hd hf_C1 hf_C2 hf_supp hf_d hf_derivWithin_0
+    hf_derivWithin_d hw
 
 @[blueprint
   "kadiri-test-fn"
@@ -439,6 +752,161 @@ theorem laplaceTransform_ibp {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
 noncomputable def kadiriTestFn (f : ℝ → ℝ) (s : ℂ) : ℝ → ℂ := fun y ↦
   if 0 ≤ y then ((f 0 : ℂ) - (f y : ℂ)) * exp (-s * (y : ℂ)) else 0
 
+@[simp]
+theorem kadiriTestFn_of_lt_zero {f : ℝ → ℝ} {s : ℂ} {y : ℝ} (hy : y < 0) :
+    kadiriTestFn f s y = 0 := by
+  simp [kadiriTestFn, not_le_of_gt hy]
+
+theorem kadiriTestFn_of_nonneg {f : ℝ → ℝ} {s : ℂ} {y : ℝ} (hy : 0 ≤ y) :
+    kadiriTestFn f s y = ((f 0 : ℂ) - (f y : ℂ)) * exp (-s * (y : ℂ)) := by
+  simp [kadiriTestFn, hy]
+
+theorem kadiriTestFn_of_ge_d {d y : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
+    (hf_supp : tsupport f ⊆ .Ico 0 d) (s : ℂ) (hy : d ≤ y) :
+    kadiriTestFn f s y = (f 0 : ℂ) * exp (-s * (y : ℂ)) := by
+  rw [kadiriTestFn_of_nonneg (le_trans hd.le hy), eq_zero_of_ge_d hf_supp hy]
+  simp
+
+theorem kadiriTestFn_mul_exp_of_pos {f : ℝ → ℝ} {s z : ℂ} {y : ℝ} (hy : 0 < y) :
+    kadiriTestFn f s y * exp (-z * (y : ℂ)) =
+      ((f 0 : ℂ) - (f y : ℂ)) * exp (-(s + z) * (y : ℂ)) := by
+  rw [kadiriTestFn_of_nonneg hy.le]
+  rw [mul_assoc, ← Complex.exp_add]
+  congr 1
+  ring_nf
+
+theorem kadiriTestFn_mul_exp_of_lt_zero {f : ℝ → ℝ} {s z : ℂ} {y : ℝ} (hy : y < 0) :
+    kadiriTestFn f s y * exp (-z * (y : ℂ)) = 0 := by
+  simp [kadiriTestFn_of_lt_zero hy]
+
+theorem kadiriTestFn_mul_exp_of_ge_d {d y : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
+    (hf_supp : tsupport f ⊆ .Ico 0 d) (s z : ℂ) (hy : d ≤ y) :
+    kadiriTestFn f s y * exp (-z * (y : ℂ)) =
+      (f 0 : ℂ) * exp (-(s + z) * (y : ℂ)) := by
+  rw [kadiriTestFn_of_ge_d hd hf_supp s hy]
+  rw [mul_assoc, ← Complex.exp_add]
+  congr 1
+  ring_nf
+
+theorem hasDerivAt_kadiriTestFn_of_lt_zero {f : ℝ → ℝ} {s : ℂ} {y : ℝ}
+    (hy : y < 0) :
+    HasDerivAt (kadiriTestFn f s) 0 y := by
+  have hEq : kadiriTestFn f s =ᶠ[nhds y] fun _ : ℝ ↦ (0 : ℂ) := by
+    refine (Set.EqOn.eventuallyEq_of_mem ?_ (Iio_mem_nhds hy))
+    intro x hx
+    exact kadiriTestFn_of_lt_zero hx
+  exact hEq.hasDerivAt_iff.mpr (hasDerivAt_const y (0 : ℂ))
+
+theorem deriv_kadiriTestFn_of_lt_zero {f : ℝ → ℝ} {s : ℂ} {y : ℝ} (hy : y < 0) :
+    deriv (kadiriTestFn f s) y = 0 :=
+  (hasDerivAt_kadiriTestFn_of_lt_zero hy).deriv
+
+theorem hasDerivAt_kadiriTestFn_of_pos {f : ℝ → ℝ} {s : ℂ} {y : ℝ}
+    (hy : 0 < y) (hf : HasDerivAt f (deriv f y) y) :
+    HasDerivAt (kadiriTestFn f s)
+      ((-((deriv f y : ℝ) : ℂ)) * exp (-s * (y : ℂ)) +
+        ((f 0 : ℂ) - (f y : ℂ)) * (-s * exp (-s * (y : ℂ)))) y := by
+  have hEq : kadiriTestFn f s =ᶠ[nhds y]
+      fun x : ℝ ↦ ((f 0 : ℂ) - (f x : ℂ)) * exp (-s * (x : ℂ)) := by
+    refine (Set.EqOn.eventuallyEq_of_mem ?_ (Ioi_mem_nhds hy))
+    intro x hx
+    exact kadiriTestFn_of_nonneg hx.le
+  have hfC : HasDerivAt (fun x : ℝ ↦ (f x : ℂ)) ((deriv f y : ℝ) : ℂ) y :=
+    hf.ofReal_comp
+  have hleft : HasDerivAt (fun x : ℝ ↦ (f 0 : ℂ) - (f x : ℂ))
+      (-((deriv f y : ℝ) : ℂ)) y := by
+    simpa using (hasDerivAt_const y (f 0 : ℂ)).sub hfC
+  exact hEq.hasDerivAt_iff.mpr (hleft.mul (hasDerivAt_exp_neg_mul s y))
+
+theorem deriv_kadiriTestFn_of_pos {f : ℝ → ℝ} {s : ℂ} {y : ℝ}
+    (hy : 0 < y) (hf : HasDerivAt f (deriv f y) y) :
+    deriv (kadiriTestFn f s) y =
+      (-((deriv f y : ℝ) : ℂ)) * exp (-s * (y : ℂ)) +
+        ((f 0 : ℂ) - (f y : ℂ)) * (-s * exp (-s * (y : ℂ))) :=
+  (hasDerivAt_kadiriTestFn_of_pos hy hf).deriv
+
+theorem hasDerivAt_kadiriTestFn_of_gt_d {d y : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
+    (hf_supp : tsupport f ⊆ .Ico 0 d) (s : ℂ) (hy : d < y) :
+    HasDerivAt (kadiriTestFn f s)
+      ((f 0 : ℂ) * (-s * exp (-s * (y : ℂ)))) y := by
+  have hEq : kadiriTestFn f s =ᶠ[nhds y]
+      fun x : ℝ ↦ (f 0 : ℂ) * exp (-s * (x : ℂ)) := by
+    refine (Set.EqOn.eventuallyEq_of_mem ?_ (Ioi_mem_nhds hy))
+    intro x hx
+    exact kadiriTestFn_of_ge_d hd hf_supp s hx.le
+  have hTail := (hasDerivAt_exp_neg_mul s y).const_mul (f 0 : ℂ)
+  exact hEq.hasDerivAt_iff.mpr hTail
+
+theorem deriv_kadiriTestFn_of_gt_d {d y : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
+    (hf_supp : tsupport f ⊆ .Ico 0 d) (s : ℂ) (hy : d < y) :
+    deriv (kadiriTestFn f s) y = (f 0 : ℂ) * (-s * exp (-s * (y : ℂ))) :=
+  (hasDerivAt_kadiriTestFn_of_gt_d hd hf_supp s hy).deriv
+
+private lemma kadiriTestFn_shift_integral_eq {f : ℝ → ℝ} (s z : ℂ) :
+    (∫ y in Set.Ioi (0 : ℝ), kadiriTestFn f s y * exp (-z * (y : ℂ)) ∂volume) =
+      ∫ y in Set.Ioi (0 : ℝ),
+        ((f 0 : ℂ) - (f y : ℂ)) * exp (-(s + z) * (y : ℂ)) ∂volume := by
+  apply MeasureTheory.setIntegral_congr_fun measurableSet_Ioi
+  intro y hy
+  exact kadiriTestFn_mul_exp_of_pos hy
+
+/-- The `f`-part of a compactly supported Laplace integrand is integrable on the half-line. -/
+private lemma integrableOn_laplace_f_term_of_contDiffOn_Icc {d : ℝ} (hd : 0 < d)
+    {f : ℝ → ℝ} (hf_C1 : ContDiffOn ℝ 1 f (Set.Icc 0 d))
+    (hf_supp : tsupport f ⊆ .Ico 0 d) (w : ℂ) :
+    IntegrableOn (fun y : ℝ ↦ (f y : ℂ) * exp (-w * (y : ℂ)))
+      (Set.Ioi (0 : ℝ)) volume := by
+  have hcont : ContinuousOn (fun y : ℝ ↦ (f y : ℂ) * exp (-w * (y : ℂ)))
+      (Set.Icc (0 : ℝ) d) := by
+    exact (continuous_ofReal.comp_continuousOn hf_C1.continuousOn).mul (by fun_prop)
+  have hIoc : IntegrableOn (fun y : ℝ ↦ (f y : ℂ) * exp (-w * (y : ℂ)))
+      (Set.Ioc (0 : ℝ) d) volume :=
+    hcont.integrableOn_Icc.mono_set Set.Ioc_subset_Icc_self
+  have htail : IntegrableOn (fun y : ℝ ↦ (f y : ℂ) * exp (-w * (y : ℂ)))
+      (Set.Ioi d) volume := by
+    refine (integrableOn_zero : IntegrableOn (fun _ : ℝ ↦ (0 : ℂ)) (Set.Ioi d) volume).congr_fun
+      ?_ measurableSet_Ioi
+    intro y hy
+    simp [eq_zero_of_ge_d hf_supp hy.le]
+  simpa [Set.Ioc_union_Ioi_eq_Ioi hd.le] using hIoc.union htail
+
+/-- Once the standard exponential tail integral is available, the Kadiri test-function shift
+identity is just integral algebra.  Keeping this bridge separate exposes the only remaining
+analytic ingredient: `∫₀∞ exp (-(s+z)y) dy = 1/(s+z)` when `0 < (s+z).re`. -/
+private lemma kadiriTestFn_laplaceTransform_of_exp_tail {f : ℝ → ℝ} {s z : ℂ}
+    (hExpInt : IntegrableOn (fun y : ℝ ↦ exp (-(s + z) * (y : ℂ)))
+      (Set.Ioi (0 : ℝ)) volume)
+    {d : ℝ} (hd : 0 < d) (hf_C1 : ContDiffOn ℝ 1 f (Set.Icc 0 d))
+    (hf_supp : tsupport f ⊆ .Ico 0 d)
+    (hExp :
+      (∫ y in Set.Ioi (0 : ℝ), exp (-(s + z) * (y : ℂ)) ∂volume) = 1 / (s + z)) :
+    (∫ y in Set.Ioi (0 : ℝ), kadiriTestFn f s y * exp (-z * (y : ℂ)) ∂volume) =
+      (f 0 : ℂ) / (s + z) - laplaceTransform f (s + z) := by
+  rw [kadiriTestFn_shift_integral_eq]
+  have hPoint :
+      (∫ y in Set.Ioi (0 : ℝ),
+        ((f 0 : ℂ) - (f y : ℂ)) * exp (-(s + z) * (y : ℂ)) ∂volume) =
+        ∫ y in Set.Ioi (0 : ℝ),
+          (f 0 : ℂ) * exp (-(s + z) * (y : ℂ)) -
+            (f y : ℂ) * exp (-(s + z) * (y : ℂ)) ∂volume := by
+    apply MeasureTheory.setIntegral_congr_fun measurableSet_Ioi
+    intro y _hy
+    ring
+  rw [hPoint]
+  have hFInt : IntegrableOn
+      (fun y : ℝ ↦ (f y : ℂ) * exp (-(s + z) * (y : ℂ))) (Set.Ioi (0 : ℝ)) volume :=
+    integrableOn_laplace_f_term_of_contDiffOn_Icc hd hf_C1 hf_supp (s + z)
+  rw [MeasureTheory.integral_sub (hExpInt.const_mul (f 0 : ℂ)) hFInt]
+  rw [MeasureTheory.integral_const_mul, hExp]
+  have hLap :
+      (∫ y in Set.Ioi (0 : ℝ), (f y : ℂ) * exp (-(s + z) * (y : ℂ)) ∂volume) =
+        laplaceTransform f (s + z) := by
+    apply MeasureTheory.setIntegral_congr_fun measurableSet_Ioi
+    intro y _hy
+    simp [mul_comm]
+  rw [hLap]
+  ring
+
 @[blueprint
   "kadiri-test-fn-contDiff"
   (title := "The Kadiri test function is $C^1$")
@@ -450,19 +918,21 @@ noncomputable def kadiriTestFn (f : ℝ → ℝ) (s : ℂ) : ℝ → ℂ := fun 
   from $f \in C^2$ on $[0, d]$; on $(d, \infty)$ it equals $f(0) e^{-sy}$ (using
   $\mathrm{supp}\, f \subseteq [0, d)$), smooth. At the seam $y = 0$: the right-limits of
   $\varphi$ and $\varphi'$ are $(f(0) - f(0)) \cdot 1 = 0$ and
-  $-f'(0) - s(f(0) - f(0)) = 0$ respectively (using $f'(0) = 0$ from $(H_1)$), matching the
-  left-limits $0$. At the seam $y = d$: the left-limits of $\varphi$ and $\varphi'$ are
+  $-f'(0) - s(f(0) - f(0)) = 0$ respectively (using the right derivative $f'(0)=0$ from
+  $(H_1)$), matching the left-limits $0$. At the seam $y = d$: the left-limits of $\varphi$
+  and $\varphi'$ are
   $(f(0) - f(d)) e^{-sd} = f(0) e^{-sd}$ (using $f(d) = 0$) and
-  $-f'(d) e^{-sd} - s(f(0) - f(d)) e^{-sd} = -s f(0) e^{-sd}$ (using $f(d) = f'(d) = 0$),
-  matching the right-limits. Hence $\varphi$ is $C^1$ globally. To be formalised. -/)
+  $-f'(d) e^{-sd} - s(f(0) - f(d)) e^{-sd} = -s f(0) e^{-sd}$ (using $f(d)=0$ and the
+  left derivative $f'(d)=0$), matching the right-limits. Hence $\varphi$ is $C^1$ globally.
+  To be formalised. -/)
   (latexEnv := "lemma")
   (discussion := 1484)]
 theorem kadiriTestFn_contDiff {d : ℝ} (_hd : 0 < d) {f : ℝ → ℝ}
     (_hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d))
     (_hf_supp : tsupport f ⊆ .Ico 0 d)
     (_hf_d : f d = 0)
-    (_hf_deriv_0 : deriv f 0 = 0)
-    (_hf_deriv_d : deriv f d = 0)
+    (_hf_derivWithin_0 : derivWithin f (.Icc 0 d) 0 = 0)
+    (_hf_derivWithin_d : derivWithin f (.Icc 0 d) d = 0)
     (_s : ℂ) :
     ContDiff ℝ 1 (kadiriTestFn f _s) := by
   sorry
@@ -511,13 +981,22 @@ theorem kadiriTestFn_decay {d : ℝ} {f : ℝ → ℝ} (_hf_supp : tsupport f �
   formalised. -/)
   (latexEnv := "lemma")
   (discussion := 1486)]
-theorem kadiriTestFn_laplaceTransform {d : ℝ} (_hd : 0 < d) {f : ℝ → ℝ}
-    (_hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d))
-    (_hf_supp : tsupport f ⊆ .Ico 0 d)
-    (s z : ℂ) (_hsz : 0 < (s + z).re) :
+theorem kadiriTestFn_laplaceTransform {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
+    (hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d))
+    (hf_supp : tsupport f ⊆ .Ico 0 d)
+    (s z : ℂ) (hsz : 0 < (s + z).re) :
     (∫ y in (.Ioi (0 : ℝ)), kadiriTestFn f s y * exp (-z * (y : ℂ)) ∂volume) =
       (f 0 : ℂ) / (s + z) - laplaceTransform f (s + z) := by
-  sorry
+  have hf_C1 : ContDiffOn ℝ 1 f (.Icc 0 d) := hf_C2.of_le (by norm_num)
+  have hExpInt : IntegrableOn (fun y : ℝ ↦ exp (-(s + z) * (y : ℂ)))
+      (Set.Ioi (0 : ℝ)) volume := by
+    -- TODO: discharge from `hsz` via the complex exponential tail-integrability lemma.
+    sorry
+  have hExp :
+      (∫ y in Set.Ioi (0 : ℝ), exp (-(s + z) * (y : ℂ)) ∂volume) = 1 / (s + z) := by
+    -- TODO: discharge from `hsz` via `∫₀∞ exp (-(s+z)y) dy = 1/(s+z)`.
+    sorry
+  exact kadiriTestFn_laplaceTransform_of_exp_tail hExpInt hd hf_C1 hf_supp hExp
 
 /-! ### Evaluation helpers for `kadiriTestFn`
 
@@ -568,9 +1047,10 @@ private theorem identity_16_complex {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
     (hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d))
     (hf_supp : tsupport f ⊆ .Ico 0 d)
     (hf_d : f d = 0)
-    (hf_deriv_0 : deriv f 0 = 0)
-    (hf_deriv_d : deriv f d = 0)
-    (hf_deriv2_d : deriv (deriv f) d = 0)
+    (hf_derivWithin_0 : derivWithin f (.Icc 0 d) 0 = 0)
+    (hf_derivWithin_d : derivWithin f (.Icc 0 d) d = 0)
+    (hf_secondWithin_d :
+      derivWithin (fun x ↦ derivWithin f (.Icc 0 d) x) (.Icc 0 d) d = 0)
     {s : ℂ} (hs : 1 < s.re) :
     (∑' n : ℕ, (Λ n : ℂ) / (n : ℂ) ^ s * ((f (Real.log n) : ℝ) : ℂ)) =
       (f 0 : ℂ) * ((∑' n : ℕ, (Λ n : ℂ) / (n : ℂ) ^ s)
@@ -580,7 +1060,7 @@ private theorem identity_16_complex {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
       + laplaceTransform f (s - 1)
       - ∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ),
           laplaceTransform f (s - ρ.val)
-      + ((1 / (2 * (Real.pi : ℂ) * I)) *
+      + ((1 / (2 * (Real.pi : ℂ))) *
           (∫ t : ℝ,
             ((digamma ((1 / 2 + (t : ℂ) * I) / 2)).re : ℂ) *
               laplaceTransform (fun u ↦ deriv (deriv f) u) (s - (1 / 2 + (t : ℂ) * I))
@@ -631,9 +1111,10 @@ theorem identity_16 {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
     (hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d))
     (hf_supp : tsupport f ⊆ .Ico 0 d)
     (hf_d : f d = 0)
-    (hf_deriv_0 : deriv f 0 = 0)
-    (hf_deriv_d : deriv f d = 0)
-    (hf_deriv2_d : deriv (deriv f) d = 0)
+    (hf_derivWithin_0 : derivWithin f (.Icc 0 d) 0 = 0)
+    (hf_derivWithin_d : derivWithin f (.Icc 0 d) d = 0)
+    (hf_secondWithin_d :
+      derivWithin (fun x ↦ derivWithin f (.Icc 0 d) x) (.Icc 0 d) d = 0)
     {s : ℂ} (hs : 1 < s.re) :
     (∑' n : ℕ, (Λ n : ℂ) / (n : ℂ) ^ s * ((f (Real.log n) : ℝ) : ℂ)).re =
       f 0 * ((∑' n : ℕ, (Λ n : ℂ) / (n : ℂ) ^ s)
@@ -643,7 +1124,7 @@ theorem identity_16 {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
         + (laplaceTransform f (s - 1)).re
         - ∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) .univ,
             (laplaceTransform f (s - ρ.val)).re
-        + ((1 / (2 * (Real.pi : ℂ) * I)) *
+        + ((1 / (2 * (Real.pi : ℂ))) *
             (∫ t : ℝ,
               ((digamma ((1 / 2 + (t : ℂ) * I) / 2)).re : ℂ) *
                 laplaceTransform (fun u ↦ deriv (deriv f) u)
@@ -653,8 +1134,9 @@ theorem identity_16 {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
   -- Reduce to the complex (pre-`Re`) form, then distribute `Re` over `+`, `-`, the
   -- $(f(0) : \mathbb{C}) \cdot ?$ factor (since $f(0) \in \mathbb{R}$), and the
   -- $\rho$-tsum (via `Complex.reCLM`).
-  have hcomplex := identity_16_complex hd hf_C2 hf_supp hf_d hf_deriv_0 hf_deriv_d
-    hf_deriv2_d hs
+  have hcomplex := identity_16_complex hd hf_C2 hf_supp hf_d hf_derivWithin_0
+    hf_derivWithin_d
+    hf_secondWithin_d hs
   -- Complex summability of `∑ρ F(s − ρ)`. Pending: derive from `summable_lap_re_at_zeros`
   -- together with an analogous Im-summability — would need a `laplaceTransform_im_decay`
   -- lemma paralleling `kadiri-laplace-re-decay`.
@@ -668,7 +1150,7 @@ theorem identity_16 {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
           laplaceTransform f (s - ρ.val)).re =
       ∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ),
           (laplaceTransform f (s - ρ.val)).re := by
-    simpa using ContinuousLinearMap.map_tsum Complex.reCLM hSumm
+    simpa using RiemannZeta.WeilGuinand.re_tsum hSumm
   -- Substitute the complex form and distribute `.re`.
   rw [hcomplex]
   simp only [Complex.add_re, Complex.sub_re, Complex.mul_re,
@@ -786,9 +1268,10 @@ theorem laplaceTransform_re_decay {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
     (hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d))
     (hf_supp : tsupport f ⊆ .Ico 0 d)
     (hf_d : f d = 0)
-    (hf_deriv_0 : deriv f 0 = 0)
-    (hf_deriv_d : deriv f d = 0)
-    (hf_deriv2_d : deriv (deriv f) d = 0)
+    (hf_derivWithin_0 : derivWithin f (.Icc 0 d) 0 = 0)
+    (hf_derivWithin_d : derivWithin f (.Icc 0 d) d = 0)
+    (hf_secondWithin_d :
+      derivWithin (fun x ↦ derivWithin f (.Icc 0 d) x) (.Icc 0 d) d = 0)
     (σ₀ σ₁ : ℝ) :
     ∃ C : ℝ, ∀ s : ℂ, σ₀ ≤ s.re → s.re ≤ σ₁ → 1 ≤ |s.im| →
       |(laplaceTransform f s).re| ≤ C / s.im ^ 2 := by
@@ -813,9 +1296,10 @@ theorem summable_lap_re_at_zeros {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
     (hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d))
     (hf_supp : tsupport f ⊆ .Ico 0 d)
     (hf_d : f d = 0)
-    (hf_deriv_0 : deriv f 0 = 0)
-    (hf_deriv_d : deriv f d = 0)
-    (hf_deriv2_d : deriv (deriv f) d = 0)
+    (hf_derivWithin_0 : derivWithin f (.Icc 0 d) 0 = 0)
+    (hf_derivWithin_d : derivWithin f (.Icc 0 d) d = 0)
+    (hf_secondWithin_d :
+      derivWithin (fun x ↦ derivWithin f (.Icc 0 d) x) (.Icc 0 d) d = 0)
     (s : ℂ) :
     Summable (fun ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ) ↦
                 (laplaceTransform f (s - ρ.val)).re) := by
@@ -848,6 +1332,40 @@ theorem re_inner_eq {s : ℂ} (hs : 1 < s.re) :
       (1 / 2 : ℝ) * (digamma (s / 2 + 1)).re := by
   sorry
 
+/-! ## Named terms from Kadiri's explicit formula
+
+The "gamma" term `T₁`, the "remainder" term `T₂`, and the difference operators `D`, `Δ₁`, `Δ₂`
+are introduced in \cite[§2.1]{Kadiri2005} to package the RHS of (4) for use in the trigonometric
+positivity argument. These are real-valued functions of a complex parameter. -/
+
+/-- $T_1(s) := -\tfrac{1}{2} \log \pi + \tfrac{1}{2} \Re(\Gamma'/\Gamma)(s/2 + 1)$ — the "gamma"
+contribution to the RHS of \cite[(4)]{Kadiri2005} (the term multiplied by $f(0)$ there). -/
+noncomputable def T1 (s : ℂ) : ℝ :=
+  -(1 / 2 : ℝ) * Real.log Real.pi + (1 / 2 : ℝ) * (digamma (s / 2 + 1)).re
+
+/-- $T_2(s)$ — the contour-integral and boundary contributions to the RHS of
+\cite[(4)]{Kadiri2005}, expressed via $F_2$, the Laplace transform of $f''$. -/
+noncomputable def T2 (f : ℝ → ℝ) (s : ℂ) : ℝ :=
+  ((1 / (2 * (Real.pi : ℂ))) *
+    (∫ t : ℝ,
+      ((digamma ((1 / 2 + (t : ℂ) * I) / 2)).re : ℂ) *
+        laplaceTransform (fun u ↦ deriv (deriv f) u) (s - (1 / 2 + (t : ℂ) * I))
+        / (s - (1 / 2 + (t : ℂ) * I)) ^ 2)
+    + laplaceTransform (fun u ↦ deriv (deriv f) u) s / s ^ 2).re
+
+/-- $D_{\kappa, \delta}(s) := \Re F(s) - \kappa \Re F(s + \delta)$ — the difference operator
+applied to $\Re F$ from \cite[§2.1]{Kadiri2005}. -/
+noncomputable def D (f : ℝ → ℝ) (κ δ : ℝ) (s : ℂ) : ℝ :=
+  (laplaceTransform f s).re - κ * (laplaceTransform f (s + (δ : ℂ))).re
+
+/-- $\Delta_1(s) := T_1(s) - \kappa T_1(s + \delta)$ — the difference operator applied to $T_1$. -/
+noncomputable def Δ1 (κ δ : ℝ) (s : ℂ) : ℝ :=
+  T1 s - κ * T1 (s + (δ : ℂ))
+
+/-- $\Delta_2(s) := T_2(s) - \kappa T_2(s + \delta)$ — the difference operator applied to $T_2$. -/
+noncomputable def Δ2 (f : ℝ → ℝ) (κ δ : ℝ) (s : ℂ) : ℝ :=
+  T2 f s - κ * T2 f (s + (δ : ℂ))
+
 /-! ## Proposition 2.1 of `Kadiri2005` (the explicit formula)
 
 Assembled from \ref{kadiri-identity-16}, \ref{kadiri-re-inner-eq}, and
@@ -857,8 +1375,9 @@ Assembled from \ref{kadiri-identity-16}, \ref{kadiri-re-inner-eq}, and
   "kadiri-prop-2-1"
   (title := "Explicit formula (Kadiri 2005, Prop.~2.1)")
   (statement := /-- Let $d > 0$ and let $f \colon [0, d] \to \mathbb{R}$ be a non-negative
-  function of class $C^2$ on $[0, d]$, compactly supported in $[0, d)$, satisfying the boundary
-  conditions $f(d) = f'(0) = f'(d) = f''(d) = 0$ (hypothesis $(H_1)$ of \cite{Kadiri2005}).
+  function of class $C^2$ on $[0, d]$, compactly supported in $[0, d)$, satisfying the
+  one-sided boundary conditions $f(d) = f'(0) = f'(d) = f''(d) = 0$ (hypothesis $(H_1)$ of
+  \cite{Kadiri2005}).
   Let $F$ denote its Laplace transform $F(s) = \int_0^d e^{-s t} f(t)\, dt$, and let $F_2$
   denote the Laplace transform of $f''$. Then for every $s \in \mathbb{C}$ with $\Re s > 1$,
   the sum $\sum_{\rho \in Z(\zeta)} \Re F(s - \rho)$ over the non-trivial zeros is convergent,
@@ -885,63 +1404,24 @@ theorem prop_2_1 {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
     (hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d))
     (hf_supp : tsupport f ⊆ .Ico 0 d)
     (hf_d : f d = 0)
-    (hf_deriv_0 : deriv f 0 = 0)
-    (hf_deriv_d : deriv f d = 0)
-    (hf_deriv2_d : deriv (deriv f) d = 0)
+    (hf_derivWithin_0 : derivWithin f (.Icc 0 d) 0 = 0)
+    (hf_derivWithin_d : derivWithin f (.Icc 0 d) d = 0)
+    (hf_secondWithin_d :
+      derivWithin (fun x ↦ derivWithin f (.Icc 0 d) x) (.Icc 0 d) d = 0)
     {s : ℂ} (hs : 1 < s.re) :
     Summable (fun ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ) ↦
                 (laplaceTransform f (s - ρ.val)).re) ∧
     (∑' n : ℕ, (Λ n : ℂ) / (n : ℂ) ^ s * ((f (Real.log n) : ℝ) : ℂ)).re =
-      f 0 * (-(1 / 2 : ℝ) * Real.log Real.pi
-              + (1 / 2 : ℝ) * (digamma (s / 2 + 1)).re)
+      f 0 * T1 s
         + (laplaceTransform f (s - 1)).re
         - ∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) .univ,
             (laplaceTransform f (s - ρ.val)).re
-        + ((1 / (2 * (Real.pi : ℂ) * I)) *
-            (∫ t : ℝ,
-              ((digamma ((1 / 2 + (t : ℂ) * I) / 2)).re : ℂ) *
-                laplaceTransform (fun u ↦ deriv (deriv f) u)
-                  (s - (1 / 2 + (t : ℂ) * I))
-                / (s - (1 / 2 + (t : ℂ) * I)) ^ 2)
-            + laplaceTransform (fun u ↦ deriv (deriv f) u) s / s ^ 2).re := by
-  refine ⟨summable_lap_re_at_zeros hd hf_nonneg hf_C2 hf_supp hf_d hf_deriv_0 hf_deriv_d
-      hf_deriv2_d s, ?_⟩
-  rw [identity_16 hd hf_nonneg hf_C2 hf_supp hf_d hf_deriv_0 hf_deriv_d hf_deriv2_d hs,
-      re_inner_eq hs]
-
-/-! ## Definitions for equation (5) of `Kadiri2005`
-
-The "gamma" term `T₁`, the "remainder" term `T₂`, and the difference operators `D`, `Δ₁`, `Δ₂`
-are introduced in \cite[§2.1]{Kadiri2005} to package the RHS of (4) for use in the trigonometric
-positivity argument. These are real-valued functions of a complex parameter. -/
-
-/-- $T_1(s) := -\tfrac{1}{2} \log \pi + \tfrac{1}{2} \Re(\Gamma'/\Gamma)(s/2 + 1)$ — the "gamma"
-contribution to the RHS of \cite[(4)]{Kadiri2005} (the term multiplied by $f(0)$ there). -/
-noncomputable def T1 (s : ℂ) : ℝ :=
-  -(1 / 2 : ℝ) * Real.log Real.pi + (1 / 2 : ℝ) * (digamma (s / 2 + 1)).re
-
-/-- $T_2(s)$ — the contour-integral and boundary contributions to the RHS of
-\cite[(4)]{Kadiri2005}, expressed via $F_2$, the Laplace transform of $f''$. -/
-noncomputable def T2 (f : ℝ → ℝ) (s : ℂ) : ℝ :=
-  ((1 / (2 * (Real.pi : ℂ) * I)) *
-    (∫ t : ℝ,
-      ((digamma ((1 / 2 + (t : ℂ) * I) / 2)).re : ℂ) *
-        laplaceTransform (fun u ↦ deriv (deriv f) u) (s - (1 / 2 + (t : ℂ) * I))
-        / (s - (1 / 2 + (t : ℂ) * I)) ^ 2)
-    + laplaceTransform (fun u ↦ deriv (deriv f) u) s / s ^ 2).re
-
-/-- $D_{\kappa, \delta}(s) := \Re F(s) - \kappa \Re F(s + \delta)$ — the "difference operator"
-applied to $\Re F$ from \cite[§2.1]{Kadiri2005}. -/
-noncomputable def D (f : ℝ → ℝ) (κ δ : ℝ) (s : ℂ) : ℝ :=
-  (laplaceTransform f s).re - κ * (laplaceTransform f (s + (δ : ℂ))).re
-
-/-- $\Delta_1(s) := T_1(s) - \kappa T_1(s + \delta)$ — the difference operator applied to $T_1$. -/
-noncomputable def Δ1 (κ δ : ℝ) (s : ℂ) : ℝ :=
-  T1 s - κ * T1 (s + (δ : ℂ))
-
-/-- $\Delta_2(s) := T_2(s) - \kappa T_2(s + \delta)$ — the difference operator applied to $T_2$. -/
-noncomputable def Δ2 (f : ℝ → ℝ) (κ δ : ℝ) (s : ℂ) : ℝ :=
-  T2 f s - κ * T2 f (s + (δ : ℂ))
+        + T2 f s := by
+  refine ⟨summable_lap_re_at_zeros hd hf_nonneg hf_C2 hf_supp hf_d hf_derivWithin_0
+      hf_derivWithin_d hf_secondWithin_d s, ?_⟩
+  rw [identity_16 hd hf_nonneg hf_C2 hf_supp hf_d hf_derivWithin_0 hf_derivWithin_d
+      hf_secondWithin_d hs, re_inner_eq hs]
+  simp [T1, T2]
 
 /-! ## Equation (5) of `Kadiri2005`: the "damped" explicit formula -/
 
@@ -966,16 +1446,21 @@ noncomputable def Δ2 (f : ℝ → ℝ) (κ δ : ℝ) (s : ℂ) : ℝ :=
   (discussion := 1478)]
 theorem eq_5 {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ} (hf_nonneg : ∀ t, 0 ≤ f t)
     (hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d)) (hf_supp : tsupport f ⊆ .Ico 0 d)
-    (hf_d : f d = 0) (hf_deriv_0 : deriv f 0 = 0) (hf_deriv_d : deriv f d = 0)
-    (hf_deriv2_d : deriv (deriv f) d = 0) (κ : ℝ) {δ : ℝ} (hδ : 0 ≤ δ)
+    (hf_d : f d = 0) (hf_derivWithin_0 : derivWithin f (.Icc 0 d) 0 = 0)
+    (hf_derivWithin_d : derivWithin f (.Icc 0 d) d = 0)
+    (hf_secondWithin_d :
+      derivWithin (fun x ↦ derivWithin f (.Icc 0 d) x) (.Icc 0 d) d = 0)
+    (κ : ℝ) {δ : ℝ} (hδ : 0 ≤ δ)
     {s : ℂ} (hs : 1 < s.re) :
     (∑' n : ℕ, Λ n / n ^ s * f (Real.log n) * ((1 : ℂ) - κ / n ^ (δ : ℂ))).re =
       f 0 * Δ1 κ δ s + D f κ δ (s - 1)
         - ∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) .univ, D f κ δ (s - ρ.val) + Δ2 f κ δ s := by
   have hsδ : 1 < (s + δ).re := by
     simp only [Complex.add_re, Complex.ofReal_re]; linarith
-  have h1 := prop_2_1 hd hf_nonneg hf_C2 hf_supp hf_d hf_deriv_0 hf_deriv_d hf_deriv2_d hs
-  have h2 := prop_2_1 hd hf_nonneg hf_C2 hf_supp hf_d hf_deriv_0 hf_deriv_d hf_deriv2_d hsδ
+  have h1 := prop_2_1 hd hf_nonneg hf_C2 hf_supp hf_d hf_derivWithin_0
+    hf_derivWithin_d hf_secondWithin_d hs
+  have h2 := prop_2_1 hd hf_nonneg hf_C2 hf_supp hf_d hf_derivWithin_0
+    hf_derivWithin_d hf_secondWithin_d hsδ
   have hLHS :
       (∑' n : ℕ, Λ n / n ^ s * f (Real.log n) * ((1 : ℂ) - κ / n ^ (δ : ℂ))).re =
       (∑' n : ℕ, Λ n / (n : ℂ) ^ s * f (Real.log n)).re
@@ -1005,7 +1490,7 @@ theorem eq_5 {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ} (hf_nonneg : ∀ t, 0 ≤ 
         (s - ρ.val) + δ = s + δ - ρ.val := fun _ ↦ by ring
     simp_rw [D, harg, (h1.1.hasSum.sub (h2.1.mul_left κ).hasSum).tsum_eq, tsum_mul_left]
   rw [hLHS, h1.2, h2.2, hZeros]
-  simp only [Δ1, Δ2, D, T1, T2]
+  simp only [Δ1, Δ2, D]
   ring_nf
 
 end Kadiri
