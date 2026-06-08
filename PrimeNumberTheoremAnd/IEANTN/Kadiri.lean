@@ -4,6 +4,7 @@ import PrimeNumberTheoremAnd.IEANTN.ZetaDefinitions
 import PrimeNumberTheoremAnd.IEANTN.HadamardLogDerivative
 import PrimeNumberTheoremAnd.Mathlib.NumberTheory.LSeries.RiemannZetaHadamard
 import PrimeNumberTheoremAnd.Mathlib.NumberTheory.LSeries.WeilGuinand
+import PrimeNumberTheoremAnd.Mathlib.Analysis.SpecialFunctions.Exp
 import Mathlib.Analysis.SpecialFunctions.Gamma.Digamma
 import PrimeNumberTheoremAnd.Mathlib.NumberTheory.LSeries.RiemannZeta
 
@@ -162,23 +163,6 @@ private lemma laplaceTransform_deriv_deriv_eq_intervalIntegral {d : ℝ} (hd : 0
           exp (-w * (x : ℂ)) ∂volume := by
   rw [laplaceTransform_deriv_deriv_eq_integral_Ioc hf_supp w,
     intervalIntegral.integral_of_le hd.le]
-
-/-- Derivative of the exponential kernel in the Laplace transform. -/
-private lemma hasDerivAt_exp_neg_mul (w : ℂ) (x : ℝ) :
-    HasDerivAt (fun y : ℝ ↦ exp (-w * (y : ℂ))) (-w * exp (-w * (x : ℂ))) x := by
-  have hofReal : HasDerivAt (fun y : ℝ ↦ (y : ℂ)) (1 : ℂ) x := by
-    simpa using (HasDerivAt.ofReal_comp (hasDerivAt_id x))
-  have hlin : HasDerivAt (fun y : ℝ ↦ -w * (y : ℂ)) (-w) x := by
-    simpa using hofReal.const_mul (-w)
-  simpa [mul_comm, mul_left_comm, mul_assoc] using hlin.cexp
-
-/-- A primitive of the Laplace exponential kernel, valid when `w ≠ 0`. -/
-private lemma hasDerivAt_laplaceKernelPrimitive {w : ℂ} (hw : w ≠ 0) (x : ℝ) :
-    HasDerivAt (fun y : ℝ ↦ (-w⁻¹) * exp (-w * (y : ℂ)))
-      (exp (-w * (x : ℂ))) x := by
-  have h := (hasDerivAt_exp_neg_mul w x).const_mul (-w⁻¹)
-  convert h using 1
-  field_simp [hw]
 
 /-- A `C¹` real function on `[0, d]` has interval-integrable complexified derivative. -/
 private lemma intervalIntegrable_deriv_complex_of_contDiffOn_Icc {d : ℝ} (hd : 0 < d)
@@ -577,10 +561,10 @@ theorem analyticOrderNatAt_riemannXi_eq_order {z : ℂ} (h0 : 0 < z.re) (h1 : z.
   from the Hadamard product for `riemannXi`, not from one for $(s - 1)\zeta(s)`. -/)
   (latexEnv := "lemma")
   (discussion := 1474)]
-theorem hadamard_identity (B : ℂ) (s : ℂ) (hs1 : s ≠ 1)
+theorem hadamard_identity (s : ℂ) (hs1 : s ≠ 1)
     (hsZ : s ∉ riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ)) :
     -deriv riemannZeta s / riemannZeta s =
-      -B - (1 / 2 : ℂ) * Real.log Real.pi + 1 / (s - 1) +
+      -hadamardB - (1 / 2 : ℂ) * Real.log Real.pi + 1 / (s - 1) +
       (1 / 2 : ℂ) * digamma (s / 2 + 1) -
       ∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ),
         (1 / (ρ.val : ℂ) + 1 / (s - ρ.val)) := by
@@ -614,6 +598,21 @@ theorem neg_zeta_logDeriv_eq_of_riemannXi_hadamardPolynomial
       (P := P) s hs hΓdiff hΓ hfac hz
   rw [Polynomial.eval_derivative_eq_eval_derivative_zero_of_degree_le_one hdeg s] at h
   exact h
+
+/-- Structured `q = 1`, trivial-character Weil--Guinand formula. This is the analytic
+contour-shift theorem; the displayed equality below is a projection of this structure. -/
+theorem kadiri_thm_3_1_q1_QOneFormula_core {φ : ℝ → ℂ} (_hφ : ContDiff ℝ 1 φ)
+    {b : ℝ} (_hb : 0 < b)
+    (_hφ_decay : (fun x : ℝ ↦ φ x * exp ((x : ℂ) / 2))
+        =O[Filter.cocompact ℝ] fun x : ℝ ↦ Real.exp (-(1/2 + b) * |x|))
+    (_hφ'_decay : (fun x : ℝ ↦ deriv φ x * exp ((x : ℂ) / 2))
+        =O[Filter.cocompact ℝ] fun x : ℝ ↦ Real.exp (-(1/2 + b) * |x|)) :
+    RiemannZeta.WeilGuinand.QOneFormula φ
+      (RiemannZeta.WeilGuinand.laplaceTransform φ)
+      (fun n : ℕ => (Λ n : ℂ))
+      (fun n : ℕ => (Λ n : ℂ) / (n : ℂ))
+      (fun ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ) => ρ.val) := by
+  sorry
 
 @[blueprint
   "kadiri-thm-3-1-q1"
@@ -666,7 +665,17 @@ theorem kadiri_thm_3_1_q1 {φ : ℝ → ℂ} (_hφ : ContDiff ℝ 1 φ)
             ∫ t : ℝ,
               ((digamma ((1 / 2 + (t : ℂ) * I) / 2)).re : ℂ) *
                 Φ (-(1 / 2 + (t : ℂ) * I)) := by
-  sorry
+  dsimp
+  have hQ := kadiri_thm_3_1_q1_QOneFormula_core _hφ _hb _hφ_decay _hφ'_decay
+  have hΛ0 : (fun n : ℕ => (Λ n : ℂ)) 0 = 0 := by simp
+  have hΛref0 : (fun n : ℕ => (Λ n : ℂ) / (n : ℂ)) 0 = 0 := by simp
+  have hformula := hQ.formula
+  rw [RiemannZeta.WeilGuinand.primeSum_eq_tsum_nat hΛ0] at hformula
+  rw [RiemannZeta.WeilGuinand.qOneRHS] at hformula
+  rw [RiemannZeta.WeilGuinand.reflectedPrimeSum_eq_tsum_nat hΛref0] at hformula
+  simpa [RiemannZeta.WeilGuinand.zeroSum, RiemannZeta.WeilGuinand.gammaIntegral,
+    RiemannZeta.WeilGuinand.gammaIntegrand, RiemannZeta.WeilGuinand.laplaceTransform] using
+    hformula
 
 /-- The displayed `q = 1` formula follows from the abstract Weil--Guinand formulation with the
 Riemann-zeta coefficients and the standard indexing of non-trivial zeros. -/
@@ -696,6 +705,31 @@ theorem kadiri_thm_3_1_q1_of_QOneFormula {φ : ℝ → ℂ}
   simpa [RiemannZeta.WeilGuinand.zeroSum, RiemannZeta.WeilGuinand.gammaIntegral,
     RiemannZeta.WeilGuinand.gammaIntegrand, RiemannZeta.WeilGuinand.laplaceTransform] using
     hformula
+
+/-- Structured `q = 1`, trivial-character Weil--Guinand formula. Unlike the displayed theorem
+`kadiri_thm_3_1_q1`, this keeps the convergence hypotheses supplied by the contour-shift proof. -/
+theorem kadiri_thm_3_1_q1_QOneFormula {φ : ℝ → ℂ} (_hφ : ContDiff ℝ 1 φ)
+    {b : ℝ} (_hb : 0 < b)
+    (_hφ_decay : (fun x : ℝ ↦ φ x * exp ((x : ℂ) / 2))
+        =O[Filter.cocompact ℝ] fun x : ℝ ↦ Real.exp (-(1/2 + b) * |x|))
+    (_hφ'_decay : (fun x : ℝ ↦ deriv φ x * exp ((x : ℂ) / 2))
+        =O[Filter.cocompact ℝ] fun x : ℝ ↦ Real.exp (-(1/2 + b) * |x|)) :
+    RiemannZeta.WeilGuinand.QOneFormula φ
+      (RiemannZeta.WeilGuinand.laplaceTransform φ)
+      (fun n : ℕ => (Λ n : ℂ))
+      (fun n : ℕ => (Λ n : ℂ) / (n : ℂ))
+      (fun ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ) => ρ.val) := by
+  exact kadiri_thm_3_1_q1_QOneFormula_core _hφ _hb _hφ_decay _hφ'_decay
+
+theorem kadiri_thm_3_1_q1_zero_summable {φ : ℝ → ℂ} (hφ : ContDiff ℝ 1 φ)
+    {b : ℝ} (hb : 0 < b)
+    (hφ_decay : (fun x : ℝ ↦ φ x * exp ((x : ℂ) / 2))
+        =O[Filter.cocompact ℝ] fun x : ℝ ↦ Real.exp (-(1/2 + b) * |x|))
+    (hφ'_decay : (fun x : ℝ ↦ deriv φ x * exp ((x : ℂ) / 2))
+        =O[Filter.cocompact ℝ] fun x : ℝ ↦ Real.exp (-(1/2 + b) * |x|)) :
+    Summable (fun ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ) =>
+      RiemannZeta.WeilGuinand.laplaceTransform φ (-ρ.val)) := by
+  exact (kadiri_thm_3_1_q1_QOneFormula hφ hb hφ_decay hφ'_decay).zero_summable
 
 /-! ## Machinery for deriving (16) from Theorem 3.1
 
@@ -825,6 +859,29 @@ theorem deriv_kadiriTestFn_of_pos {f : ℝ → ℝ} {s : ℂ} {y : ℝ}
         ((f 0 : ℂ) - (f y : ℂ)) * (-s * exp (-s * (y : ℂ))) :=
   (hasDerivAt_kadiriTestFn_of_pos hy hf).deriv
 
+private lemma Icc_mem_nhds_of_mem_Ioo {d y : ℝ} (hy0 : 0 < y) (hyd : y < d) :
+    Set.Icc (0 : ℝ) d ∈ nhds y := by
+  rw [mem_nhds_iff]
+  exact ⟨Set.Ioo (0 : ℝ) d, Set.Ioo_subset_Icc_self, isOpen_Ioo, ⟨hy0, hyd⟩⟩
+
+theorem deriv_kadiriTestFn_of_pos_lt_d {d y : ℝ} {f : ℝ → ℝ}
+    (hf_C2 : ContDiffOn ℝ 2 f (Set.Icc 0 d)) (s : ℂ) (hy0 : 0 < y) (hyd : y < d) :
+    deriv (kadiriTestFn f s) y =
+      (-((deriv f y : ℝ) : ℂ)) * exp (-s * (y : ℂ)) +
+        ((f 0 : ℂ) - (f y : ℂ)) * (-s * exp (-s * (y : ℂ))) := by
+  have hIcc : Set.Icc (0 : ℝ) d ∈ nhds y := Icc_mem_nhds_of_mem_Ioo hy0 hyd
+  have hf_at : ContDiffAt ℝ 2 f y := hf_C2.contDiffAt hIcc
+  exact deriv_kadiriTestFn_of_pos hy0
+    (hf_at.differentiableAt (by norm_num : (2 : WithTop ℕ∞) ≠ 0)).hasDerivAt
+
+theorem deriv_kadiriTestFn_of_pos_lt_d_derivWithin {d y : ℝ} {f : ℝ → ℝ}
+    (hf_C2 : ContDiffOn ℝ 2 f (Set.Icc 0 d)) (s : ℂ) (hy0 : 0 < y) (hyd : y < d) :
+    deriv (kadiriTestFn f s) y =
+      (-((derivWithin f (Set.Icc 0 d) y : ℝ) : ℂ)) * exp (-s * (y : ℂ)) +
+        ((f 0 : ℂ) - (f y : ℂ)) * (-s * exp (-s * (y : ℂ))) := by
+  rw [deriv_kadiriTestFn_of_pos_lt_d hf_C2 s hy0 hyd]
+  rw [derivWithin_of_mem_nhds (Icc_mem_nhds_of_mem_Ioo hy0 hyd)]
+
 theorem hasDerivAt_kadiriTestFn_of_gt_d {d y : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
     (hf_supp : tsupport f ⊆ .Ico 0 d) (s : ℂ) (hy : d < y) :
     HasDerivAt (kadiriTestFn f s)
@@ -841,6 +898,712 @@ theorem deriv_kadiriTestFn_of_gt_d {d y : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
     (hf_supp : tsupport f ⊆ .Ico 0 d) (s : ℂ) (hy : d < y) :
     deriv (kadiriTestFn f s) y = (f 0 : ℂ) * (-s * exp (-s * (y : ℂ))) :=
   (hasDerivAt_kadiriTestFn_of_gt_d hd hf_supp s hy).deriv
+
+theorem hasDerivAt_kadiriTestFn_of_pos_gt_d {d y : ℝ} {f : ℝ → ℝ}
+    (hf_supp : tsupport f ⊆ .Ico 0 d) (s : ℂ) (hy0 : 0 < y) (hyd : d < y) :
+    HasDerivAt (kadiriTestFn f s)
+      ((f 0 : ℂ) * (-s * exp (-s * (y : ℂ)))) y := by
+  have htail : max (0 : ℝ) d < y := max_lt hy0 hyd
+  have hEq : kadiriTestFn f s =ᶠ[nhds y]
+      fun x : ℝ ↦ (f 0 : ℂ) * exp (-s * (x : ℂ)) := by
+    refine (Set.EqOn.eventuallyEq_of_mem ?_ (Ioi_mem_nhds htail))
+    intro x hx
+    have hx0 : 0 ≤ x := le_trans (le_max_left (0 : ℝ) d) hx.le
+    have hxd : d ≤ x := le_trans (le_max_right (0 : ℝ) d) hx.le
+    rw [kadiriTestFn_of_nonneg hx0, eq_zero_of_ge_d hf_supp hxd]
+    simp
+  have hTail := (hasDerivAt_exp_neg_mul s y).const_mul (f 0 : ℂ)
+  exact hEq.hasDerivAt_iff.mpr hTail
+
+theorem deriv_kadiriTestFn_of_pos_gt_d {d y : ℝ} {f : ℝ → ℝ}
+    (hf_supp : tsupport f ⊆ .Ico 0 d) (s : ℂ) (hy0 : 0 < y) (hyd : d < y) :
+    deriv (kadiriTestFn f s) y = (f 0 : ℂ) * (-s * exp (-s * (y : ℂ))) :=
+  (hasDerivAt_kadiriTestFn_of_pos_gt_d hf_supp s hy0 hyd).deriv
+
+theorem kadiriTestFn_mul_exp_half_of_lt_zero {f : ℝ → ℝ} {s : ℂ} {y : ℝ} (hy : y < 0) :
+    kadiriTestFn f s y * exp ((y : ℂ) / 2) = 0 := by
+  simp [kadiriTestFn_of_lt_zero hy]
+
+theorem deriv_kadiriTestFn_mul_exp_half_of_lt_zero {f : ℝ → ℝ} {s : ℂ} {y : ℝ}
+    (hy : y < 0) :
+    deriv (kadiriTestFn f s) y * exp ((y : ℂ) / 2) = 0 := by
+  simp [deriv_kadiriTestFn_of_lt_zero hy]
+
+theorem kadiriTestFn_mul_exp_half_of_gt_d {d y : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
+    (hf_supp : tsupport f ⊆ .Ico 0 d) (s : ℂ) (hy : d < y) :
+    kadiriTestFn f s y * exp ((y : ℂ) / 2) =
+      (f 0 : ℂ) * exp (((1 / 2 : ℂ) - s) * (y : ℂ)) := by
+  rw [kadiriTestFn_of_ge_d hd hf_supp s hy.le]
+  rw [mul_assoc, ← Complex.exp_add]
+  congr 1
+  ring_nf
+
+theorem deriv_kadiriTestFn_mul_exp_half_of_gt_d {d y : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
+    (hf_supp : tsupport f ⊆ .Ico 0 d) (s : ℂ) (hy : d < y) :
+    deriv (kadiriTestFn f s) y * exp ((y : ℂ) / 2) =
+      (f 0 : ℂ) * (-s) * exp (((1 / 2 : ℂ) - s) * (y : ℂ)) := by
+  rw [deriv_kadiriTestFn_of_gt_d hd hf_supp s hy]
+  rw [mul_assoc, mul_assoc, ← Complex.exp_add]
+  ring_nf
+
+private lemma Icc_mem_nhdsWithin_Ici_left {d : ℝ} (hd : 0 < d) :
+    Set.Icc (0 : ℝ) d ∈ nhdsWithin (0 : ℝ) (Set.Ici 0) := by
+  rw [mem_nhdsWithin]
+  refine ⟨Set.Iio d, isOpen_Iio, hd, ?_⟩
+  intro x hx
+  exact ⟨hx.2, le_of_lt hx.1⟩
+
+private lemma half_Icc_mem_nhdsWithin_Ici_left {d : ℝ} (hd : 0 < d) :
+    Set.Icc (0 : ℝ) (d / 2) ∈ nhdsWithin (0 : ℝ) (Set.Ici 0) := by
+  rw [mem_nhdsWithin]
+  refine ⟨Set.Iio (d / 2), isOpen_Iio, half_pos hd, ?_⟩
+  intro x hx
+  exact ⟨hx.2, le_of_lt hx.1⟩
+
+private lemma Icc_mem_nhdsWithin_Iic_right {d : ℝ} (hd : 0 < d) :
+    Set.Icc (0 : ℝ) d ∈ nhdsWithin d (Set.Iic d) := by
+  rw [mem_nhdsWithin]
+  refine ⟨Set.Ioi (0 : ℝ), isOpen_Ioi, hd, ?_⟩
+  intro x hx
+  exact ⟨hx.1.le, hx.2⟩
+
+private lemma half_Icc_mem_nhdsWithin_Iic_right {d : ℝ} (hd : 0 < d) :
+    Set.Icc (d / 2) d ∈ nhdsWithin d (Set.Iic d) := by
+  rw [mem_nhdsWithin]
+  refine ⟨Set.Ioi (d / 2), isOpen_Ioi, half_lt_self hd, ?_⟩
+  intro x hx
+  exact ⟨hx.1.le, hx.2⟩
+
+private lemma ofReal_contDiffAt {n : WithTop ℕ∞} {f : ℝ → ℝ} {x : ℝ}
+    (hf : ContDiffAt ℝ n f x) : ContDiffAt ℝ n (fun y : ℝ ↦ (f y : ℂ)) x := by
+  simpa [Function.comp_def] using (Complex.ofRealCLM.contDiff.comp_contDiffAt x hf)
+
+private lemma toSpanSingleton_sub (z w : ℂ) :
+    ContinuousLinearMap.toSpanSingleton ℝ z - ContinuousLinearMap.toSpanSingleton ℝ w =
+      ContinuousLinearMap.toSpanSingleton ℝ (z - w) := by
+  ext
+  simp [ContinuousLinearMap.toSpanSingleton_apply]
+
+private lemma continuous_toSpanSingleton_complex :
+    Continuous (fun z : ℂ => ContinuousLinearMap.toSpanSingleton ℝ z) := by
+  rw [Metric.continuous_iff]
+  intro z ε hε
+  refine ⟨ε, hε, ?_⟩
+  intro w hw
+  rw [dist_eq_norm, toSpanSingleton_sub, ContinuousLinearMap.norm_toSpanSingleton]
+  simpa [dist_eq_norm] using hw
+
+private lemma continuousAt_toSpanSingleton_deriv {φ : ℝ → ℂ} {x : ℝ}
+    (hφ : ContinuousAt (deriv φ) x) :
+    ContinuousAt (fun y : ℝ => ContinuousLinearMap.toSpanSingleton ℝ (deriv φ y)) x :=
+  continuous_toSpanSingleton_complex.continuousAt.comp hφ
+
+private lemma exp_neg_mul_contDiffAt {s : ℂ} {x : ℝ} :
+    ContDiffAt ℝ 1 (fun y : ℝ ↦ exp (-s * (y : ℂ))) x := by
+  have hid : ContDiffAt ℝ 1 (fun y : ℝ ↦ (y : ℂ)) x :=
+    ofReal_contDiffAt (f := fun y : ℝ => y) contDiff_id.contDiffAt
+  have hmul : ContDiffAt ℝ 1 (fun y : ℝ ↦ s * (y : ℂ)) x := by
+    simpa using (contDiffAt_const.mul hid)
+  have hlin : ContDiffAt ℝ 1 (fun y : ℝ ↦ -(s * (y : ℂ))) x := hmul.neg
+  simpa [neg_mul] using hlin.cexp
+
+private lemma contDiffAt_kadiriTestFn_model {f : ℝ → ℝ} {s : ℂ} {x : ℝ}
+    (hf : ContDiffAt ℝ 2 f x) :
+    ContDiffAt ℝ 1
+      (fun y : ℝ ↦ ((f 0 : ℂ) - (f y : ℂ)) * exp (-s * (y : ℂ))) x := by
+  have hf1 : ContDiffAt ℝ 1 f x := hf.of_le (by norm_num)
+  have hfC : ContDiffAt ℝ 1 (fun y : ℝ ↦ (f y : ℂ)) x := ofReal_contDiffAt hf1
+  have hsub : ContDiffAt ℝ 1 (fun y : ℝ ↦ (f 0 : ℂ) - (f y : ℂ)) x := by
+    simpa using (contDiffAt_const.sub hfC)
+  exact hsub.mul exp_neg_mul_contDiffAt
+
+private lemma contDiffAt_kadiriTestFn_tail {f : ℝ → ℝ} {s : ℂ} {x : ℝ} :
+    ContDiffAt ℝ 1 (fun y : ℝ ↦ (f 0 : ℂ) * exp (-s * (y : ℂ))) x :=
+  contDiffAt_const.mul exp_neg_mul_contDiffAt
+
+theorem contDiffAt_kadiriTestFn_of_lt_zero {f : ℝ → ℝ} {s : ℂ} {x : ℝ} (hx : x < 0) :
+    ContDiffAt ℝ 1 (kadiriTestFn f s) x := by
+  have hEq : kadiriTestFn f s =ᶠ[nhds x] fun _ : ℝ ↦ (0 : ℂ) := by
+    refine (Set.EqOn.eventuallyEq_of_mem ?_ (Iio_mem_nhds hx))
+    intro y hy
+    exact kadiriTestFn_of_lt_zero hy
+  exact contDiffAt_const.congr_of_eventuallyEq hEq
+
+theorem contDiffAt_kadiriTestFn_of_pos_lt_d {d x : ℝ} {f : ℝ → ℝ}
+    (hf_C2 : ContDiffOn ℝ 2 f (Set.Icc 0 d)) (s : ℂ) (hx0 : 0 < x) (hxd : x < d) :
+    ContDiffAt ℝ 1 (kadiriTestFn f s) x := by
+  have hIcc : Set.Icc (0 : ℝ) d ∈ nhds x := by
+    rw [mem_nhds_iff]
+    refine ⟨Set.Ioo (0 : ℝ) d, Set.Ioo_subset_Icc_self, isOpen_Ioo, ⟨hx0, hxd⟩⟩
+  have hf_at : ContDiffAt ℝ 2 f x := hf_C2.contDiffAt hIcc
+  have hmodel := contDiffAt_kadiriTestFn_model (f := f) (s := s) hf_at
+  have hEq : kadiriTestFn f s =ᶠ[nhds x]
+      fun y : ℝ ↦ ((f 0 : ℂ) - (f y : ℂ)) * exp (-s * (y : ℂ)) := by
+    refine (Set.EqOn.eventuallyEq_of_mem ?_ (Ioi_mem_nhds hx0))
+    intro y hy
+    exact kadiriTestFn_of_nonneg hy.le
+  exact hmodel.congr_of_eventuallyEq hEq
+
+theorem contDiffAt_kadiriTestFn_of_gt_d {d x : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
+    (hf_supp : tsupport f ⊆ Set.Ico 0 d) (s : ℂ) (hxd : d < x) :
+    ContDiffAt ℝ 1 (kadiriTestFn f s) x := by
+  have hmodel := contDiffAt_kadiriTestFn_tail (f := f) (s := s) (x := x)
+  have hEq : kadiriTestFn f s =ᶠ[nhds x] fun y : ℝ ↦ (f 0 : ℂ) * exp (-s * (y : ℂ)) := by
+    refine (Set.EqOn.eventuallyEq_of_mem ?_ (Ioi_mem_nhds hxd))
+    intro y hy
+    exact kadiriTestFn_of_ge_d hd hf_supp s hy.le
+  exact hmodel.congr_of_eventuallyEq hEq
+
+private lemma continuousWithinAt_kadiriTestFn_compact {d x : ℝ} (hx : x ∈ Set.Icc (0 : ℝ) d)
+    {f : ℝ → ℝ} (hf_C2 : ContDiffOn ℝ 2 f (Set.Icc 0 d)) (s : ℂ) :
+    ContinuousWithinAt
+      (fun y : ℝ ↦ ((f 0 : ℂ) - (f y : ℂ)) * exp (-s * (y : ℂ)))
+      (Set.Icc 0 d) x := by
+  have hfc : ContinuousWithinAt f (Set.Icc (0 : ℝ) d) x :=
+    hf_C2.continuousOn.continuousWithinAt hx
+  have hfcC : ContinuousWithinAt (fun y : ℝ ↦ (f y : ℂ)) (Set.Icc (0 : ℝ) d) x := by
+    exact (Complex.continuous_ofReal.tendsto (f x)).comp hfc.tendsto
+  have hkernel : ContinuousWithinAt (fun y : ℝ ↦ exp (-s * (y : ℂ)))
+      (Set.Icc (0 : ℝ) d) x := by
+    fun_prop
+  exact ((continuousWithinAt_const.sub hfcC).mul hkernel)
+
+theorem kadiriTestFn_continuousAt_zero {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
+    (hf_C2 : ContDiffOn ℝ 2 f (Set.Icc 0 d)) (s : ℂ) :
+    ContinuousAt (kadiriTestFn f s) 0 := by
+  have hleft : ContinuousWithinAt (kadiriTestFn f s) (Set.Iic (0 : ℝ)) 0 := by
+    refine ContinuousWithinAt.congr
+      (show ContinuousWithinAt (fun _ : ℝ => (0 : ℂ)) (Set.Iic (0 : ℝ)) 0 from
+        continuousWithinAt_const) ?_ ?_
+    · intro y hy
+      rw [Set.mem_Iic] at hy
+      rcases lt_or_eq_of_le hy with hylt | rfl
+      · exact kadiriTestFn_of_lt_zero hylt
+      · simp [kadiriTestFn]
+    · simp [kadiriTestFn]
+  have hright_fun : ContinuousWithinAt
+      (fun y : ℝ ↦ ((f 0 : ℂ) - (f y : ℂ)) * exp (-s * (y : ℂ)))
+      (Set.Ici (0 : ℝ)) 0 := by
+    have hcontIcc :
+        ContinuousWithinAt
+          (fun y : ℝ ↦ ((f 0 : ℂ) - (f y : ℂ)) * exp (-s * (y : ℂ)))
+          (Set.Icc (0 : ℝ) d) 0 :=
+      continuousWithinAt_kadiriTestFn_compact ⟨le_rfl, hd.le⟩ hf_C2 s
+    rw [ContinuousWithinAt] at hcontIcc ⊢
+    exact hcontIcc.mono_left (by
+      rw [nhdsWithin_le_iff]
+      exact Icc_mem_nhdsWithin_Ici_left hd)
+  have hright : ContinuousWithinAt (kadiriTestFn f s) (Set.Ici (0 : ℝ)) 0 := by
+    refine ContinuousWithinAt.congr hright_fun ?_ ?_
+    · intro y hy
+      exact kadiriTestFn_of_nonneg hy
+    · simp [kadiriTestFn]
+  have hU : ContinuousWithinAt (kadiriTestFn f s) (Set.Iic (0 : ℝ) ∪ Set.Ici 0) 0 :=
+    hleft.union hright
+  rw [Set.Iic_union_Ici] at hU
+  exact hU.continuousAt (by simp)
+
+theorem kadiriTestFn_continuousAt_d {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
+    (hf_C2 : ContDiffOn ℝ 2 f (Set.Icc 0 d)) (hf_supp : tsupport f ⊆ Set.Ico 0 d)
+    (hf_d : f d = 0) (s : ℂ) :
+    ContinuousAt (kadiriTestFn f s) d := by
+  let hfun : ℝ → ℂ := fun y ↦ ((f 0 : ℂ) - (f y : ℂ)) * exp (-s * (y : ℂ))
+  have hleft_h : ContinuousWithinAt hfun (Set.Iic d) d := by
+    have hcontIcc : ContinuousWithinAt hfun (Set.Icc (0 : ℝ) d) d :=
+      continuousWithinAt_kadiriTestFn_compact ⟨hd.le, le_rfl⟩ hf_C2 s
+    rw [ContinuousWithinAt] at hcontIcc ⊢
+    exact hcontIcc.mono_left (by
+      rw [nhdsWithin_le_iff]
+      exact Icc_mem_nhdsWithin_Iic_right hd)
+  have hleft : ContinuousWithinAt (kadiriTestFn f s) (Set.Iic d) d := by
+    refine ContinuousWithinAt.congr_of_eventuallyEq hleft_h ?_ ?_
+    · refine (Set.EqOn.eventuallyEq_of_mem ?_ (Icc_mem_nhdsWithin_Iic_right hd))
+      intro y hy
+      exact kadiriTestFn_of_nonneg hy.1
+    · dsimp [hfun]
+      rw [kadiriTestFn_of_nonneg hd.le, hf_d]
+  have hright_h : ContinuousWithinAt (fun y : ℝ ↦ (f 0 : ℂ) * exp (-s * (y : ℂ)))
+      (Set.Ici d) d := by
+    fun_prop
+  have hright : ContinuousWithinAt (kadiriTestFn f s) (Set.Ici d) d := by
+    refine ContinuousWithinAt.congr hright_h ?_ ?_
+    · intro y hy
+      exact kadiriTestFn_of_ge_d hd hf_supp s hy
+    · rw [kadiriTestFn_of_ge_d hd hf_supp s le_rfl]
+  have hU : ContinuousWithinAt (kadiriTestFn f s) (Set.Iic d ∪ Set.Ici d) d :=
+    hleft.union hright
+  rw [Set.Iic_union_Ici] at hU
+  exact hU.continuousAt (by simp)
+
+theorem hasDerivAt_kadiriTestFn_zero {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
+    (hf_C2 : ContDiffOn ℝ 2 f (Set.Icc 0 d))
+    (hf_derivWithin_0 : derivWithin f (Set.Icc 0 d) 0 = 0) (s : ℂ) :
+    HasDerivAt (kadiriTestFn f s) 0 0 := by
+  let hfun : ℝ → ℂ := fun y ↦ ((f 0 : ℂ) - (f y : ℂ)) * exp (-s * (y : ℂ))
+  have hleft : HasDerivWithinAt (kadiriTestFn f s) 0 (Set.Iic (0 : ℝ)) 0 := by
+    refine HasDerivWithinAt.congr
+      (hasDerivWithinAt_const (0 : ℝ) (Set.Iic (0 : ℝ)) (0 : ℂ)) ?_ ?_
+    · intro y hy
+      rw [Set.mem_Iic] at hy
+      rcases lt_or_eq_of_le hy with hylt | rfl
+      · exact kadiriTestFn_of_lt_zero hylt
+      · simp [kadiriTestFn]
+    · simp [kadiriTestFn]
+  have hright_h_Icc : HasDerivWithinAt hfun 0 (Set.Icc (0 : ℝ) d) 0 := by
+    have hdiff : DifferentiableWithinAt ℝ f (Set.Icc (0 : ℝ) d) 0 :=
+      (hf_C2.differentiableOn (by norm_num : (2 : WithTop ℕ∞) ≠ 0)) 0
+        ⟨le_rfl, hd.le⟩
+    have hfderiv : HasDerivWithinAt f 0 (Set.Icc (0 : ℝ) d) 0 := by
+      simpa [hf_derivWithin_0] using hdiff.hasDerivWithinAt
+    have hfC : HasDerivWithinAt (fun y : ℝ ↦ (f y : ℂ)) 0 (Set.Icc (0 : ℝ) d) 0 := by
+      simpa using hfderiv.ofReal_comp
+    have hsub : HasDerivWithinAt (fun y : ℝ ↦ (f 0 : ℂ) - (f y : ℂ)) 0
+        (Set.Icc (0 : ℝ) d) 0 := by
+      simpa using hfC.const_sub (f 0 : ℂ)
+    have hkernel : HasDerivWithinAt (fun y : ℝ ↦ exp (-s * (y : ℂ)))
+        (-s * exp (-s * (0 : ℂ))) (Set.Icc (0 : ℝ) d) 0 :=
+      (Complex.hasDerivAt_exp_neg_mul s 0).hasDerivWithinAt
+    have hmul := hsub.mul hkernel
+    dsimp [hfun] at hmul ⊢
+    simpa using hmul
+  have hright_h : HasDerivWithinAt hfun 0 (Set.Ici (0 : ℝ)) 0 := by
+    rw [HasDerivWithinAt] at hright_h_Icc ⊢
+    exact hright_h_Icc.mono (Filter.prod_mono (by
+      rw [nhdsWithin_le_iff]
+      exact Icc_mem_nhdsWithin_Ici_left hd) le_rfl)
+  have hright : HasDerivWithinAt (kadiriTestFn f s) 0 (Set.Ici (0 : ℝ)) 0 := by
+    refine HasDerivWithinAt.congr hright_h ?_ ?_
+    · intro y hy
+      exact kadiriTestFn_of_nonneg hy
+    · simp [kadiriTestFn, hfun]
+  have hU : HasDerivWithinAt (kadiriTestFn f s) 0 (Set.Iic (0 : ℝ) ∪ Set.Ici 0) 0 :=
+    hleft.union hright
+  rw [Set.Iic_union_Ici] at hU
+  exact hU.hasDerivAt (by simp)
+
+theorem deriv_kadiriTestFn_zero {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
+    (hf_C2 : ContDiffOn ℝ 2 f (Set.Icc 0 d))
+    (hf_derivWithin_0 : derivWithin f (Set.Icc 0 d) 0 = 0) (s : ℂ) :
+    deriv (kadiriTestFn f s) 0 = 0 :=
+  (hasDerivAt_kadiriTestFn_zero hd hf_C2 hf_derivWithin_0 s).deriv
+
+theorem hasDerivAt_kadiriTestFn_d {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
+    (hf_C2 : ContDiffOn ℝ 2 f (Set.Icc 0 d)) (hf_supp : tsupport f ⊆ Set.Ico 0 d)
+    (hf_d : f d = 0) (hf_derivWithin_d : derivWithin f (Set.Icc 0 d) d = 0) (s : ℂ) :
+    HasDerivAt (kadiriTestFn f s) ((f 0 : ℂ) * (-s * exp (-s * (d : ℂ)))) d := by
+  let hfun : ℝ → ℂ := fun y ↦ ((f 0 : ℂ) - (f y : ℂ)) * exp (-s * (y : ℂ))
+  let hderiv : ℂ := (f 0 : ℂ) * (-s * exp (-s * (d : ℂ)))
+  have hleft_h_Icc : HasDerivWithinAt hfun hderiv (Set.Icc (0 : ℝ) d) d := by
+    have hdiff : DifferentiableWithinAt ℝ f (Set.Icc (0 : ℝ) d) d :=
+      (hf_C2.differentiableOn (by norm_num : (2 : WithTop ℕ∞) ≠ 0)) d
+        ⟨hd.le, le_rfl⟩
+    have hfderiv : HasDerivWithinAt f 0 (Set.Icc (0 : ℝ) d) d := by
+      simpa [hf_derivWithin_d] using hdiff.hasDerivWithinAt
+    have hfC : HasDerivWithinAt (fun y : ℝ ↦ (f y : ℂ)) 0 (Set.Icc (0 : ℝ) d) d := by
+      simpa using hfderiv.ofReal_comp
+    have hsub : HasDerivWithinAt (fun y : ℝ ↦ (f 0 : ℂ) - (f y : ℂ)) 0
+        (Set.Icc (0 : ℝ) d) d := by
+      simpa using hfC.const_sub (f 0 : ℂ)
+    have hkernel : HasDerivWithinAt (fun y : ℝ ↦ exp (-s * (y : ℂ)))
+        (-s * exp (-s * (d : ℂ))) (Set.Icc (0 : ℝ) d) d :=
+      (Complex.hasDerivAt_exp_neg_mul s d).hasDerivWithinAt
+    have hmul := hsub.mul hkernel
+    dsimp [hfun, hderiv] at hmul ⊢
+    simpa [hf_d] using hmul
+  have hleft_h : HasDerivWithinAt hfun hderiv (Set.Iic d) d := by
+    rw [HasDerivWithinAt] at hleft_h_Icc ⊢
+    exact hleft_h_Icc.mono (Filter.prod_mono (by
+      rw [nhdsWithin_le_iff]
+      exact Icc_mem_nhdsWithin_Iic_right hd) le_rfl)
+  have hleft : HasDerivWithinAt (kadiriTestFn f s) hderiv (Set.Iic d) d := by
+    refine HasDerivWithinAt.congr_of_eventuallyEq hleft_h ?_ ?_
+    · refine (Set.EqOn.eventuallyEq_of_mem ?_ (Icc_mem_nhdsWithin_Iic_right hd))
+      intro y hy
+      exact kadiriTestFn_of_nonneg hy.1
+    · dsimp [hfun]
+      rw [kadiriTestFn_of_nonneg hd.le, hf_d]
+  have hright_h : HasDerivWithinAt (fun y : ℝ ↦ (f 0 : ℂ) * exp (-s * (y : ℂ))) hderiv
+      (Set.Ici d) d := by
+    dsimp [hderiv]
+    simpa using ((Complex.hasDerivAt_exp_neg_mul s d).const_mul (f 0 : ℂ)).hasDerivWithinAt
+  have hright : HasDerivWithinAt (kadiriTestFn f s) hderiv (Set.Ici d) d := by
+    refine HasDerivWithinAt.congr hright_h ?_ ?_
+    · intro y hy
+      exact kadiriTestFn_of_ge_d hd hf_supp s hy
+    · rw [kadiriTestFn_of_ge_d hd hf_supp s le_rfl]
+  have hU : HasDerivWithinAt (kadiriTestFn f s) hderiv (Set.Iic d ∪ Set.Ici d) d :=
+    hleft.union hright
+  rw [Set.Iic_union_Ici] at hU
+  simpa [hderiv] using hU.hasDerivAt (by simp)
+
+theorem deriv_kadiriTestFn_d {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
+    (hf_C2 : ContDiffOn ℝ 2 f (Set.Icc 0 d)) (hf_supp : tsupport f ⊆ Set.Ico 0 d)
+    (hf_d : f d = 0) (hf_derivWithin_d : derivWithin f (Set.Icc 0 d) d = 0) (s : ℂ) :
+    deriv (kadiriTestFn f s) d = (f 0 : ℂ) * (-s * exp (-s * (d : ℂ))) :=
+  (hasDerivAt_kadiriTestFn_d hd hf_C2 hf_supp hf_d hf_derivWithin_d s).deriv
+
+private lemma continuousWithinAt_kadiriTestFn_deriv_model_zero {d : ℝ} (hd : 0 < d)
+    {f : ℝ → ℝ} (hf_C2 : ContDiffOn ℝ 2 f (Set.Icc 0 d)) (s : ℂ) :
+    ContinuousWithinAt
+      (fun y : ℝ ↦
+        (-((derivWithin f (Set.Icc 0 d) y : ℝ) : ℂ)) * exp (-s * (y : ℂ)) +
+          ((f 0 : ℂ) - (f y : ℂ)) * (-s * exp (-s * (y : ℂ))))
+      (Set.Icc (0 : ℝ) d) 0 := by
+  have hUD : UniqueDiffOn ℝ (Set.Icc (0 : ℝ) d) := uniqueDiffOn_Icc hd
+  have hg_contOn : ContinuousOn (derivWithin f (Set.Icc (0 : ℝ) d))
+      (Set.Icc (0 : ℝ) d) := by
+    have hcd : ContDiffOn ℝ 0 (derivWithin f (Set.Icc (0 : ℝ) d))
+        (Set.Icc (0 : ℝ) d) :=
+      hf_C2.derivWithin hUD (by norm_num : (0 : WithTop ℕ∞) + 1 ≤ 2)
+    exact hcd.continuousOn
+  have hg : ContinuousWithinAt (derivWithin f (Set.Icc (0 : ℝ) d))
+      (Set.Icc (0 : ℝ) d) 0 :=
+    hg_contOn.continuousWithinAt ⟨le_rfl, hd.le⟩
+  have hgC : ContinuousWithinAt
+      (fun y : ℝ ↦ ((derivWithin f (Set.Icc (0 : ℝ) d) y : ℝ) : ℂ))
+      (Set.Icc (0 : ℝ) d) 0 := by
+    exact (Complex.continuous_ofReal.tendsto (derivWithin f (Set.Icc (0 : ℝ) d) 0)).comp
+      hg.tendsto
+  have hf_cont : ContinuousWithinAt f (Set.Icc (0 : ℝ) d) 0 :=
+    hf_C2.continuousOn.continuousWithinAt ⟨le_rfl, hd.le⟩
+  have hfC : ContinuousWithinAt (fun y : ℝ ↦ (f y : ℂ)) (Set.Icc (0 : ℝ) d) 0 := by
+    exact (Complex.continuous_ofReal.tendsto (f 0)).comp hf_cont.tendsto
+  have hkernel : ContinuousWithinAt (fun y : ℝ ↦ exp (-s * (y : ℂ)))
+      (Set.Icc (0 : ℝ) d) 0 := by
+    fun_prop
+  have hkernel' : ContinuousWithinAt (fun y : ℝ ↦ -s * exp (-s * (y : ℂ)))
+      (Set.Icc (0 : ℝ) d) 0 :=
+    continuousWithinAt_const.mul hkernel
+  have hleft : ContinuousWithinAt
+      (fun y : ℝ ↦ (-((derivWithin f (Set.Icc 0 d) y : ℝ) : ℂ)) *
+        exp (-s * (y : ℂ)))
+      (Set.Icc (0 : ℝ) d) 0 :=
+    hgC.neg.mul hkernel
+  have hright : ContinuousWithinAt
+      (fun y : ℝ ↦ ((f 0 : ℂ) - (f y : ℂ)) * (-s * exp (-s * (y : ℂ))))
+      (Set.Icc (0 : ℝ) d) 0 :=
+    (continuousWithinAt_const.sub hfC).mul hkernel'
+  exact hleft.add hright
+
+theorem continuousAt_deriv_kadiriTestFn_zero {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
+    (hf_C2 : ContDiffOn ℝ 2 f (Set.Icc 0 d))
+    (hf_derivWithin_0 : derivWithin f (Set.Icc 0 d) 0 = 0) (s : ℂ) :
+    ContinuousAt (deriv (kadiriTestFn f s)) 0 := by
+  let model : ℝ → ℂ := fun y ↦
+    (-((derivWithin f (Set.Icc 0 d) y : ℝ) : ℂ)) * exp (-s * (y : ℂ)) +
+      ((f 0 : ℂ) - (f y : ℂ)) * (-s * exp (-s * (y : ℂ)))
+  have hleft : ContinuousWithinAt (deriv (kadiriTestFn f s)) (Set.Iic (0 : ℝ)) 0 := by
+    refine ContinuousWithinAt.congr
+      (show ContinuousWithinAt (fun _ : ℝ => (0 : ℂ)) (Set.Iic (0 : ℝ)) 0 from
+        continuousWithinAt_const) ?_ ?_
+    · intro y hy
+      rw [Set.mem_Iic] at hy
+      rcases lt_or_eq_of_le hy with hylt | rfl
+      · exact deriv_kadiriTestFn_of_lt_zero hylt
+      · exact deriv_kadiriTestFn_zero hd hf_C2 hf_derivWithin_0 s
+    · exact deriv_kadiriTestFn_zero hd hf_C2 hf_derivWithin_0 s
+  have hright_model_Icc := continuousWithinAt_kadiriTestFn_deriv_model_zero hd hf_C2 s
+  have hright_model : ContinuousWithinAt model (Set.Ici (0 : ℝ)) 0 := by
+    rw [ContinuousWithinAt] at hright_model_Icc ⊢
+    exact hright_model_Icc.mono_left (by
+      rw [nhdsWithin_le_iff]
+      exact Icc_mem_nhdsWithin_Ici_left hd)
+  have hright : ContinuousWithinAt (deriv (kadiriTestFn f s)) (Set.Ici (0 : ℝ)) 0 := by
+    refine ContinuousWithinAt.congr_of_eventuallyEq hright_model ?_ ?_
+    · refine (Set.EqOn.eventuallyEq_of_mem ?_ (half_Icc_mem_nhdsWithin_Ici_left hd))
+      intro y hy
+      rw [Set.mem_Icc] at hy
+      rcases lt_or_eq_of_le hy.1 with hypos | rfl
+      · have hyd : y < d := by linarith
+        dsimp [model]
+        exact deriv_kadiriTestFn_of_pos_lt_d_derivWithin hf_C2 s hypos hyd
+      · dsimp [model]
+        rw [deriv_kadiriTestFn_zero hd hf_C2 hf_derivWithin_0 s, hf_derivWithin_0]
+        simp
+    · dsimp [model]
+      rw [deriv_kadiriTestFn_zero hd hf_C2 hf_derivWithin_0 s, hf_derivWithin_0]
+      simp
+  have hU : ContinuousWithinAt (deriv (kadiriTestFn f s))
+      (Set.Iic (0 : ℝ) ∪ Set.Ici 0) 0 :=
+    hleft.union hright
+  rw [Set.Iic_union_Ici] at hU
+  exact hU.continuousAt (by simp)
+
+private lemma continuousWithinAt_kadiriTestFn_deriv_model_d {d : ℝ} (hd : 0 < d)
+    {f : ℝ → ℝ} (hf_C2 : ContDiffOn ℝ 2 f (Set.Icc 0 d)) (s : ℂ) :
+    ContinuousWithinAt
+      (fun y : ℝ ↦
+        (-((derivWithin f (Set.Icc 0 d) y : ℝ) : ℂ)) * exp (-s * (y : ℂ)) +
+          ((f 0 : ℂ) - (f y : ℂ)) * (-s * exp (-s * (y : ℂ))))
+      (Set.Icc (0 : ℝ) d) d := by
+  have hUD : UniqueDiffOn ℝ (Set.Icc (0 : ℝ) d) := uniqueDiffOn_Icc hd
+  have hg_contOn : ContinuousOn (derivWithin f (Set.Icc (0 : ℝ) d))
+      (Set.Icc (0 : ℝ) d) := by
+    have hcd : ContDiffOn ℝ 0 (derivWithin f (Set.Icc (0 : ℝ) d))
+        (Set.Icc (0 : ℝ) d) :=
+      hf_C2.derivWithin hUD (by norm_num : (0 : WithTop ℕ∞) + 1 ≤ 2)
+    exact hcd.continuousOn
+  have hg : ContinuousWithinAt (derivWithin f (Set.Icc (0 : ℝ) d))
+      (Set.Icc (0 : ℝ) d) d :=
+    hg_contOn.continuousWithinAt ⟨hd.le, le_rfl⟩
+  have hgC : ContinuousWithinAt
+      (fun y : ℝ ↦ ((derivWithin f (Set.Icc (0 : ℝ) d) y : ℝ) : ℂ))
+      (Set.Icc (0 : ℝ) d) d := by
+    exact (Complex.continuous_ofReal.tendsto (derivWithin f (Set.Icc (0 : ℝ) d) d)).comp
+      hg.tendsto
+  have hf_cont : ContinuousWithinAt f (Set.Icc (0 : ℝ) d) d :=
+    hf_C2.continuousOn.continuousWithinAt ⟨hd.le, le_rfl⟩
+  have hfC : ContinuousWithinAt (fun y : ℝ ↦ (f y : ℂ)) (Set.Icc (0 : ℝ) d) d := by
+    exact (Complex.continuous_ofReal.tendsto (f d)).comp hf_cont.tendsto
+  have hkernel : ContinuousWithinAt (fun y : ℝ ↦ exp (-s * (y : ℂ)))
+      (Set.Icc (0 : ℝ) d) d := by
+    fun_prop
+  have hkernel' : ContinuousWithinAt (fun y : ℝ ↦ -s * exp (-s * (y : ℂ)))
+      (Set.Icc (0 : ℝ) d) d :=
+    continuousWithinAt_const.mul hkernel
+  have hleft : ContinuousWithinAt
+      (fun y : ℝ ↦ (-((derivWithin f (Set.Icc 0 d) y : ℝ) : ℂ)) *
+        exp (-s * (y : ℂ)))
+      (Set.Icc (0 : ℝ) d) d :=
+    hgC.neg.mul hkernel
+  have hright : ContinuousWithinAt
+      (fun y : ℝ ↦ ((f 0 : ℂ) - (f y : ℂ)) * (-s * exp (-s * (y : ℂ))))
+      (Set.Icc (0 : ℝ) d) d :=
+    (continuousWithinAt_const.sub hfC).mul hkernel'
+  exact hleft.add hright
+
+theorem continuousAt_deriv_kadiriTestFn_d {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
+    (hf_C2 : ContDiffOn ℝ 2 f (Set.Icc 0 d)) (hf_supp : tsupport f ⊆ Set.Ico 0 d)
+    (hf_d : f d = 0) (hf_derivWithin_d : derivWithin f (Set.Icc 0 d) d = 0) (s : ℂ) :
+    ContinuousAt (deriv (kadiriTestFn f s)) d := by
+  let model : ℝ → ℂ := fun y ↦
+    (-((derivWithin f (Set.Icc 0 d) y : ℝ) : ℂ)) * exp (-s * (y : ℂ)) +
+      ((f 0 : ℂ) - (f y : ℂ)) * (-s * exp (-s * (y : ℂ)))
+  let tail : ℝ → ℂ := fun y ↦ (f 0 : ℂ) * (-s * exp (-s * (y : ℂ)))
+  have hleft_model_Icc := continuousWithinAt_kadiriTestFn_deriv_model_d hd hf_C2 s
+  have hleft_model : ContinuousWithinAt model (Set.Iic d) d := by
+    rw [ContinuousWithinAt] at hleft_model_Icc ⊢
+    exact hleft_model_Icc.mono_left (by
+      rw [nhdsWithin_le_iff]
+      exact Icc_mem_nhdsWithin_Iic_right hd)
+  have hleft : ContinuousWithinAt (deriv (kadiriTestFn f s)) (Set.Iic d) d := by
+    refine ContinuousWithinAt.congr_of_eventuallyEq hleft_model ?_ ?_
+    · refine (Set.EqOn.eventuallyEq_of_mem ?_ (half_Icc_mem_nhdsWithin_Iic_right hd))
+      intro y hy
+      rw [Set.mem_Icc] at hy
+      rcases lt_or_eq_of_le hy.2 with hylt | rfl
+      · have hypos : 0 < y := by nlinarith [hd, hy.1]
+        dsimp [model]
+        exact deriv_kadiriTestFn_of_pos_lt_d_derivWithin hf_C2 s hypos hylt
+      · dsimp [model]
+        rw [deriv_kadiriTestFn_d hd hf_C2 hf_supp hf_d hf_derivWithin_d s,
+          hf_derivWithin_d, hf_d]
+        simp
+    · dsimp [model]
+      rw [deriv_kadiriTestFn_d hd hf_C2 hf_supp hf_d hf_derivWithin_d s,
+        hf_derivWithin_d, hf_d]
+      simp
+  have hright_tail : ContinuousWithinAt tail (Set.Ici d) d := by
+    dsimp [tail]
+    fun_prop
+  have hright : ContinuousWithinAt (deriv (kadiriTestFn f s)) (Set.Ici d) d := by
+    refine ContinuousWithinAt.congr hright_tail ?_ ?_
+    · intro y hy
+      rw [Set.mem_Ici] at hy
+      rcases lt_or_eq_of_le hy with hylt | rfl
+      · dsimp [tail]
+        rw [deriv_kadiriTestFn_of_gt_d hd hf_supp s hylt]
+      · dsimp [tail]
+        rw [deriv_kadiriTestFn_d hd hf_C2 hf_supp hf_d hf_derivWithin_d s]
+    · dsimp [tail]
+      rw [deriv_kadiriTestFn_d hd hf_C2 hf_supp hf_d hf_derivWithin_d s]
+  have hU : ContinuousWithinAt (deriv (kadiriTestFn f s)) (Set.Iic d ∪ Set.Ici d) d :=
+    hleft.union hright
+  rw [Set.Iic_union_Ici] at hU
+  exact hU.continuousAt (by simp)
+
+private lemma continuousAt_deriv_kadiriTestFn_of_lt_zero {f : ℝ → ℝ} {s : ℂ} {x : ℝ}
+    (hx : x < 0) : ContinuousAt (deriv (kadiriTestFn f s)) x := by
+  have hEq : deriv (kadiriTestFn f s) =ᶠ[nhds x] fun _ : ℝ ↦ (0 : ℂ) := by
+    refine (Set.EqOn.eventuallyEq_of_mem ?_ (Iio_mem_nhds hx))
+    intro y hy
+    exact deriv_kadiriTestFn_of_lt_zero hy
+  exact continuousAt_const.congr_of_eventuallyEq hEq
+
+private lemma continuousAt_deriv_kadiriTestFn_of_pos_lt_d {d x : ℝ} {f : ℝ → ℝ}
+    (hf_C2 : ContDiffOn ℝ 2 f (Set.Icc 0 d)) (s : ℂ) (hx0 : 0 < x) (hxd : x < d) :
+    ContinuousAt (deriv (kadiriTestFn f s)) x := by
+  let model : ℝ → ℂ := fun y ↦
+    (-((derivWithin f (Set.Icc 0 d) y : ℝ) : ℂ)) * exp (-s * (y : ℂ)) +
+      ((f 0 : ℂ) - (f y : ℂ)) * (-s * exp (-s * (y : ℂ)))
+  have hd : 0 < d := lt_trans hx0 hxd
+  have hUD : UniqueDiffOn ℝ (Set.Icc (0 : ℝ) d) := uniqueDiffOn_Icc hd
+  have hg_contOn : ContinuousOn (derivWithin f (Set.Icc (0 : ℝ) d))
+      (Set.Icc (0 : ℝ) d) := by
+    have hcd : ContDiffOn ℝ 0 (derivWithin f (Set.Icc (0 : ℝ) d))
+        (Set.Icc (0 : ℝ) d) :=
+      hf_C2.derivWithin hUD (by norm_num : (0 : WithTop ℕ∞) + 1 ≤ 2)
+    exact hcd.continuousOn
+  have hg : ContinuousAt (derivWithin f (Set.Icc (0 : ℝ) d)) x :=
+    (hg_contOn.continuousWithinAt ⟨hx0.le, hxd.le⟩).continuousAt
+      (Icc_mem_nhds_of_mem_Ioo hx0 hxd)
+  have hgC : ContinuousAt
+      (fun y : ℝ ↦ ((derivWithin f (Set.Icc (0 : ℝ) d) y : ℝ) : ℂ)) x := by
+    exact (Complex.continuous_ofReal.tendsto (derivWithin f (Set.Icc (0 : ℝ) d) x)).comp
+      hg.tendsto
+  have hf_at : ContDiffAt ℝ 2 f x := hf_C2.contDiffAt (Icc_mem_nhds_of_mem_Ioo hx0 hxd)
+  have hf_cont : ContinuousAt f x := hf_at.continuousAt
+  have hfC : ContinuousAt (fun y : ℝ ↦ (f y : ℂ)) x := by
+    exact (Complex.continuous_ofReal.tendsto (f x)).comp hf_cont.tendsto
+  have hkernel : ContinuousAt (fun y : ℝ ↦ exp (-s * (y : ℂ))) x := by
+    fun_prop
+  have hkernel' : ContinuousAt (fun y : ℝ ↦ -s * exp (-s * (y : ℂ))) x :=
+    continuousAt_const.mul hkernel
+  have hmodel : ContinuousAt model x := by
+    dsimp [model]
+    exact (hgC.neg.mul hkernel).add ((continuousAt_const.sub hfC).mul hkernel')
+  have hEq : deriv (kadiriTestFn f s) =ᶠ[nhds x] model := by
+    refine (Set.EqOn.eventuallyEq_of_mem ?_ (Ioo_mem_nhds hx0 hxd))
+    intro y hy
+    dsimp [model]
+    exact deriv_kadiriTestFn_of_pos_lt_d_derivWithin hf_C2 s hy.1 hy.2
+  exact hmodel.congr_of_eventuallyEq hEq
+
+private lemma continuousAt_deriv_kadiriTestFn_of_gt_d {d x : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
+    (hf_supp : tsupport f ⊆ Set.Ico 0 d) (s : ℂ) (hxd : d < x) :
+    ContinuousAt (deriv (kadiriTestFn f s)) x := by
+  let tail : ℝ → ℂ := fun y ↦ (f 0 : ℂ) * (-s * exp (-s * (y : ℂ)))
+  have htail : ContinuousAt tail x := by
+    dsimp [tail]
+    fun_prop
+  have hEq : deriv (kadiriTestFn f s) =ᶠ[nhds x] tail := by
+    refine (Set.EqOn.eventuallyEq_of_mem ?_ (Ioi_mem_nhds hxd))
+    intro y hy
+    dsimp [tail]
+    rw [deriv_kadiriTestFn_of_gt_d hd hf_supp s hy]
+  exact htail.congr_of_eventuallyEq hEq
+
+theorem contDiffAt_kadiriTestFn_zero {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
+    (hf_C2 : ContDiffOn ℝ 2 f (Set.Icc 0 d))
+    (hf_derivWithin_0 : derivWithin f (Set.Icc 0 d) 0 = 0) (s : ℂ) :
+    ContDiffAt ℝ 1 (kadiriTestFn f s) 0 := by
+  rw [contDiffAt_one_iff]
+  let φ := kadiriTestFn f s
+  let f' : ℝ → ℝ →L[ℝ] ℂ := fun y ↦ ContinuousLinearMap.toSpanSingleton ℝ (deriv φ y)
+  refine ⟨f', Set.Ioo (-1 : ℝ) (d / 2), ?_, ?_, ?_⟩
+  · exact Ioo_mem_nhds (by norm_num) (half_pos hd)
+  · rw [isOpen_Ioo.continuousOn_iff]
+    intro y hy
+    dsimp [f', φ]
+    apply continuousAt_toSpanSingleton_deriv
+    rcases lt_trichotomy y 0 with hyneg | hyzero | hypos
+    · exact continuousAt_deriv_kadiriTestFn_of_lt_zero hyneg
+    · subst y
+      exact continuousAt_deriv_kadiriTestFn_zero hd hf_C2 hf_derivWithin_0 s
+    · have hyd : y < d := by nlinarith [hd, hy.2]
+      exact continuousAt_deriv_kadiriTestFn_of_pos_lt_d hf_C2 s hypos hyd
+  · intro y hy
+    dsimp [f', φ]
+    rcases lt_trichotomy y 0 with hyneg | hyzero | hypos
+    · exact ((hasDerivAt_kadiriTestFn_of_lt_zero hyneg).hasFDerivAt).congr_fderiv (by
+        rw [deriv_kadiriTestFn_of_lt_zero hyneg])
+    · subst y
+      exact ((hasDerivAt_kadiriTestFn_zero hd hf_C2 hf_derivWithin_0 s).hasFDerivAt).congr_fderiv
+        (by rw [deriv_kadiriTestFn_zero hd hf_C2 hf_derivWithin_0 s])
+    · have hyd : y < d := by nlinarith [hd, hy.2]
+      have hIcc : Set.Icc (0 : ℝ) d ∈ nhds y := Icc_mem_nhds_of_mem_Ioo hypos hyd
+      have hf_at : ContDiffAt ℝ 2 f y := hf_C2.contDiffAt hIcc
+      exact ((hasDerivAt_kadiriTestFn_of_pos hypos
+        (hf_at.differentiableAt (by norm_num : (2 : WithTop ℕ∞) ≠ 0)).hasDerivAt).hasFDerivAt).congr_fderiv
+          (by rw [deriv_kadiriTestFn_of_pos_lt_d hf_C2 s hypos hyd])
+
+theorem contDiffAt_kadiriTestFn_d {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
+    (hf_C2 : ContDiffOn ℝ 2 f (Set.Icc 0 d)) (hf_supp : tsupport f ⊆ Set.Ico 0 d)
+    (hf_d : f d = 0) (hf_derivWithin_d : derivWithin f (Set.Icc 0 d) d = 0) (s : ℂ) :
+    ContDiffAt ℝ 1 (kadiriTestFn f s) d := by
+  rw [contDiffAt_one_iff]
+  let φ := kadiriTestFn f s
+  let f' : ℝ → ℝ →L[ℝ] ℂ := fun y ↦ ContinuousLinearMap.toSpanSingleton ℝ (deriv φ y)
+  refine ⟨f', Set.Ioo (d / 2) (d + 1), ?_, ?_, ?_⟩
+  · exact Ioo_mem_nhds (half_lt_self hd) (by linarith)
+  · rw [isOpen_Ioo.continuousOn_iff]
+    intro y hy
+    dsimp [f', φ]
+    apply continuousAt_toSpanSingleton_deriv
+    rcases lt_trichotomy y d with hylt | hyeq | hygt
+    · have hypos : 0 < y := by nlinarith [hd, hy.1]
+      exact continuousAt_deriv_kadiriTestFn_of_pos_lt_d hf_C2 s hypos hylt
+    · subst y
+      exact continuousAt_deriv_kadiriTestFn_d hd hf_C2 hf_supp hf_d hf_derivWithin_d s
+    · exact continuousAt_deriv_kadiriTestFn_of_gt_d hd hf_supp s hygt
+  · intro y hy
+    dsimp [f', φ]
+    rcases lt_trichotomy y d with hylt | hyeq | hygt
+    · have hypos : 0 < y := by nlinarith [hd, hy.1]
+      have hIcc : Set.Icc (0 : ℝ) d ∈ nhds y := Icc_mem_nhds_of_mem_Ioo hypos hylt
+      have hf_at : ContDiffAt ℝ 2 f y := hf_C2.contDiffAt hIcc
+      exact ((hasDerivAt_kadiriTestFn_of_pos hypos
+        (hf_at.differentiableAt (by norm_num : (2 : WithTop ℕ∞) ≠ 0)).hasDerivAt).hasFDerivAt).congr_fderiv
+          (by rw [deriv_kadiriTestFn_of_pos_lt_d hf_C2 s hypos hylt])
+    · subst y
+      exact ((hasDerivAt_kadiriTestFn_d hd hf_C2 hf_supp hf_d hf_derivWithin_d s).hasFDerivAt).congr_fderiv
+        (by rw [deriv_kadiriTestFn_d hd hf_C2 hf_supp hf_d hf_derivWithin_d s])
+    · exact ((hasDerivAt_kadiriTestFn_of_gt_d hd hf_supp s hygt).hasFDerivAt).congr_fderiv
+        (by rw [deriv_kadiriTestFn_of_gt_d hd hf_supp s hygt])
+
+private lemma lt_abs_mem_cocompact {A : ℝ} :
+    {x : ℝ | A < |x|} ∈ Filter.cocompact ℝ := by
+  rw [Filter.mem_cocompact]
+  refine ⟨Set.Icc (-|A|) |A|, isCompact_Icc, ?_⟩
+  intro x hx
+  rw [Set.mem_compl_iff, Set.mem_Icc] at hx
+  rw [Set.mem_setOf_eq, lt_abs]
+  by_cases hxA : |A| < x
+  · exact Or.inl (lt_of_le_of_lt (le_abs_self A) hxA)
+  · right
+    by_contra hAxneg
+    have hxleA : x ≤ |A| := le_of_not_gt hxA
+    have hneg_leA : -x ≤ |A| := le_trans (le_of_not_gt hAxneg) (le_abs_self A)
+    have hle : -|A| ≤ x := by linarith
+    exact hx ⟨hle, hxleA⟩
+
+private lemma isBigO_cocompact_of_exp_tail {F : ℝ → ℂ} {d : ℝ} {c s : ℂ}
+    (hs : 1 < s.re)
+    (hneg : ∀ x : ℝ, x < 0 → F x = 0)
+    (hpos : ∀ x : ℝ, 0 < x → d < x →
+      F x = c * exp (((1 / 2 : ℂ) - s) * (x : ℂ))) :
+    F =O[Filter.cocompact ℝ]
+      fun x : ℝ ↦ Real.exp (-(1 / 2 + (s.re - 1) / 2) * |x|) := by
+  let A : ℝ := max |d| 1
+  refine Asymptotics.IsBigO.of_bound (max 1 ‖c‖) ?_
+  filter_upwards [lt_abs_mem_cocompact (A := A)] with x hx
+  have hC0 : 0 ≤ max 1 ‖c‖ := le_trans (by norm_num : (0 : ℝ) ≤ 1) (le_max_left 1 ‖c‖)
+  by_cases hxpos : 0 < x
+  · have hxabs : |x| = x := abs_of_pos hxpos
+    have hAd : |d| ≤ A := le_max_left |d| 1
+    have hdx : d < x := by
+      have hAx : A < x := by simpa [hxabs] using hx
+      exact lt_of_le_of_lt (le_trans (le_abs_self d) hAd) hAx
+    rw [hpos x hxpos hdx]
+    rw [norm_mul, Complex.norm_exp]
+    rw [Real.norm_eq_abs, abs_of_pos (Real.exp_pos _)]
+    have hnormc : ‖c‖ ≤ max 1 ‖c‖ := le_max_right 1 ‖c‖
+    have hexp : Real.exp ((((1 / 2 : ℂ) - s) * (x : ℂ)).re) ≤
+        Real.exp (-(1 / 2 + (s.re - 1) / 2) * |x|) := by
+      rw [Real.exp_le_exp]
+      simp [Complex.mul_re, hxabs]
+      nlinarith [hs.le, hxpos.le]
+    exact mul_le_mul hnormc hexp (Real.exp_pos _).le hC0
+  · have hxneg : x < 0 := by
+      have hA_one : (1 : ℝ) ≤ A := le_max_right |d| 1
+      have h_abs_gt_one : 1 < |x| := lt_of_le_of_lt hA_one hx
+      exact lt_of_not_ge fun hx0 => by
+        have hxabs : |x| = x := abs_of_nonneg hx0
+        linarith
+    rw [hneg x hxneg]
+    simpa using
+      mul_nonneg hC0
+        (norm_nonneg (Real.exp (-(1 / 2 + (s.re - 1) / 2) * |x|)))
 
 private lemma kadiriTestFn_shift_integral_eq {f : ℝ → ℝ} (s z : ℂ) :
     (∫ y in Set.Ioi (0 : ℝ), kadiriTestFn f s y * exp (-z * (y : ℂ)) ∂volume) =
@@ -870,9 +1633,9 @@ private lemma integrableOn_laplace_f_term_of_contDiffOn_Icc {d : ℝ} (hd : 0 < 
     simp [eq_zero_of_ge_d hf_supp hy.le]
   simpa [Set.Ioc_union_Ioi_eq_Ioi hd.le] using hIoc.union htail
 
-/-- Once the standard exponential tail integral is available, the Kadiri test-function shift
-identity is just integral algebra.  Keeping this bridge separate exposes the only remaining
-analytic ingredient: `∫₀∞ exp (-(s+z)y) dy = 1/(s+z)` when `0 < (s+z).re`. -/
+/-- Given the elementary exponential tail integral, the Kadiri test-function shift identity is
+just integral algebra.  This bridge keeps the compact-support part separate from the pure
+exponential calculation. -/
 private lemma kadiriTestFn_laplaceTransform_of_exp_tail {f : ℝ → ℝ} {s z : ℂ}
     (hExpInt : IntegrableOn (fun y : ℝ ↦ exp (-(s + z) * (y : ℂ)))
       (Set.Ioi (0 : ℝ)) volume)
@@ -912,7 +1675,10 @@ private lemma kadiriTestFn_laplaceTransform_of_exp_tail {f : ℝ → ℝ} {s z :
   (title := "The Kadiri test function is $C^1$")
   (statement := /-- For $f$ satisfying $(H_1)$ of \ref{kadiri-prop-2-1} and any
   $s \in \mathbb{C}$, the Kadiri test function $\mathrm{kadiriTestFn}\, f\, s$
-  (\ref{kadiri-test-fn}) is $C^1$ on $\mathbb{R}$. -/)
+  (\ref{kadiri-test-fn}) has the $C^1$ regularity needed for
+  \ref{kadiri-thm-3-1-q1}.  Kadiri states the stronger $C^2$ regularity for this
+  particular test function; this lemma records the weaker regularity used by the
+  present abstract explicit-formula interface. -/)
   (proof := /-- The function $\varphi(\cdot;\, s)$ is smooth on each of the three open pieces:
   on $(-\infty, 0)$ it is $\equiv 0$; on $(0, d)$ it equals $(f(0) - f(y)) e^{-sy}$, $C^2$
   from $f \in C^2$ on $[0, d]$; on $(d, \infty)$ it equals $f(0) e^{-sy}$ (using
@@ -923,19 +1689,27 @@ private lemma kadiriTestFn_laplaceTransform_of_exp_tail {f : ℝ → ℝ} {s z :
   and $\varphi'$ are
   $(f(0) - f(d)) e^{-sd} = f(0) e^{-sd}$ (using $f(d) = 0$) and
   $-f'(d) e^{-sd} - s(f(0) - f(d)) e^{-sd} = -s f(0) e^{-sd}$ (using $f(d)=0$ and the
-  left derivative $f'(d)=0$), matching the right-limits. Hence $\varphi$ is $C^1$ globally.
-  To be formalised. -/)
+  left derivative $f'(d)=0$), matching the right-limits. Hence $\varphi$ is at least
+  $C^1$ globally, which is the condition required below. To be formalised. -/)
   (latexEnv := "lemma")
   (discussion := 1484)]
-theorem kadiriTestFn_contDiff {d : ℝ} (_hd : 0 < d) {f : ℝ → ℝ}
-    (_hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d))
-    (_hf_supp : tsupport f ⊆ .Ico 0 d)
-    (_hf_d : f d = 0)
-    (_hf_derivWithin_0 : derivWithin f (.Icc 0 d) 0 = 0)
-    (_hf_derivWithin_d : derivWithin f (.Icc 0 d) d = 0)
-    (_s : ℂ) :
-    ContDiff ℝ 1 (kadiriTestFn f _s) := by
-  sorry
+theorem kadiriTestFn_contDiff {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
+    (hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d))
+    (hf_supp : tsupport f ⊆ .Ico 0 d)
+    (hf_d : f d = 0)
+    (hf_derivWithin_0 : derivWithin f (.Icc 0 d) 0 = 0)
+    (hf_derivWithin_d : derivWithin f (.Icc 0 d) d = 0)
+    (s : ℂ) :
+    ContDiff ℝ 1 (kadiriTestFn f s) := by
+  rw [contDiff_iff_contDiffAt]
+  intro x
+  rcases lt_trichotomy x 0 with hx0 | rfl | hx0
+  · exact contDiffAt_kadiriTestFn_of_lt_zero hx0
+  · exact contDiffAt_kadiriTestFn_zero hd hf_C2 hf_derivWithin_0 s
+  · rcases lt_trichotomy x d with hxd | rfl | hdx
+    · exact contDiffAt_kadiriTestFn_of_pos_lt_d hf_C2 s hx0 hxd
+    · exact contDiffAt_kadiriTestFn_d hd hf_C2 hf_supp hf_d hf_derivWithin_d s
+    · exact contDiffAt_kadiriTestFn_of_gt_d hd hf_supp s hdx
 
 @[blueprint
   "kadiri-test-fn-decay"
@@ -962,7 +1736,21 @@ theorem kadiriTestFn_decay {d : ℝ} {f : ℝ → ℝ} (_hf_supp : tsupport f �
           =O[Filter.cocompact ℝ] fun x : ℝ ↦ Real.exp (-(1/2 + b) * |x|)) ∧
       ((fun x : ℝ ↦ deriv (kadiriTestFn f s) x * exp ((x : ℂ) / 2))
           =O[Filter.cocompact ℝ] fun x : ℝ ↦ Real.exp (-(1/2 + b) * |x|)) := by
-  sorry
+  refine ⟨(s.re - 1) / 2, by linarith, ?_, ?_⟩
+  · exact isBigO_cocompact_of_exp_tail (d := d) (c := (f 0 : ℂ)) _hs
+      (fun x hx ↦ kadiriTestFn_mul_exp_half_of_lt_zero hx)
+      (fun x hx0 hdx ↦ by
+        rw [kadiriTestFn_of_nonneg hx0.le, eq_zero_of_ge_d _hf_supp hdx.le]
+        simp only [ofReal_zero, sub_zero, neg_mul, one_div]
+        rw [mul_assoc, ← Complex.exp_add]
+        congr 1
+        ring_nf)
+  · exact isBigO_cocompact_of_exp_tail (d := d) (c := (f 0 : ℂ) * (-s)) _hs
+      (fun x hx ↦ deriv_kadiriTestFn_mul_exp_half_of_lt_zero hx)
+      (fun x hx0 hdx ↦ by
+        rw [deriv_kadiriTestFn_of_pos_gt_d _hf_supp s hx0 hdx]
+        rw [mul_assoc, mul_assoc, ← Complex.exp_add]
+        ring_nf)
 
 @[blueprint
   "kadiri-test-fn-laplace"
@@ -989,13 +1777,11 @@ theorem kadiriTestFn_laplaceTransform {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
       (f 0 : ℂ) / (s + z) - laplaceTransform f (s + z) := by
   have hf_C1 : ContDiffOn ℝ 1 f (.Icc 0 d) := hf_C2.of_le (by norm_num)
   have hExpInt : IntegrableOn (fun y : ℝ ↦ exp (-(s + z) * (y : ℂ)))
-      (Set.Ioi (0 : ℝ)) volume := by
-    -- TODO: discharge from `hsz` via the complex exponential tail-integrability lemma.
-    sorry
+      (Set.Ioi (0 : ℝ)) volume :=
+    integrableOn_exp_neg_mul_Ioi hsz
   have hExp :
-      (∫ y in Set.Ioi (0 : ℝ), exp (-(s + z) * (y : ℂ)) ∂volume) = 1 / (s + z) := by
-    -- TODO: discharge from `hsz` via `∫₀∞ exp (-(s+z)y) dy = 1/(s+z)`.
-    sorry
+      (∫ y in Set.Ioi (0 : ℝ), exp (-(s + z) * (y : ℂ)) ∂volume) = 1 / (s + z) :=
+    integral_exp_neg_mul_Ioi hsz
   exact kadiriTestFn_laplaceTransform_of_exp_tail hExpInt hd hf_C1 hf_supp hExp
 
 /-! ### Evaluation helpers for `kadiriTestFn`
@@ -1033,39 +1819,371 @@ theorem kadiriTestFn_log (f : ℝ → ℝ) (s : ℂ) {n : ℕ} (hn : 1 ≤ n) :
   dsimp only [kadiriTestFn]
   rw [if_pos (Real.log_natCast_nonneg n), hexp, div_eq_mul_inv]
 
-/-! ### Auxiliary: complex (pre-`Re`) form of equation (16)
-
-We split the proof of \ref{kadiri-identity-16} in two. The auxiliary `identity_16_complex`
-below carries the mathematical content — apply \ref{kadiri-thm-3-1-q1} to the Kadiri test
-function, substitute the four $\Phi$-values via \ref{kadiri-test-fn-laplace}, rewrite the
-$F$-occurrences at $w = s$ and $w = s - z$ (inside the contour integral) into the
-$F_2$-form via \ref{kadiri-laplace-ibp}, and algebraically rearrange. Then `identity_16`
-itself just takes real parts of both sides and distributes $\Re$ over $+$, $-$, and the
-$\rho$-tsum. -/
-
-private theorem identity_16_complex {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
+/-- The `q = 1` explicit formula specialized to Kadiri's test function, with its regularity and
+decay hypotheses discharged by `kadiriTestFn_contDiff` and `kadiriTestFn_decay`. -/
+theorem kadiri_thm_3_1_q1_kadiriTestFn {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
     (hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d))
     (hf_supp : tsupport f ⊆ .Ico 0 d)
     (hf_d : f d = 0)
     (hf_derivWithin_0 : derivWithin f (.Icc 0 d) 0 = 0)
     (hf_derivWithin_d : derivWithin f (.Icc 0 d) d = 0)
-    (hf_secondWithin_d :
-      derivWithin (fun x ↦ derivWithin f (.Icc 0 d) x) (.Icc 0 d) d = 0)
     {s : ℂ} (hs : 1 < s.re) :
-    (∑' n : ℕ, (Λ n : ℂ) / (n : ℂ) ^ s * ((f (Real.log n) : ℝ) : ℂ)) =
-      (f 0 : ℂ) * ((∑' n : ℕ, (Λ n : ℂ) / (n : ℂ) ^ s)
-                    - 1 / (s - 1)
-                    + ∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ),
-                        1 / (s - ρ.val))
-      + laplaceTransform f (s - 1)
-      - ∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ),
-          laplaceTransform f (s - ρ.val)
-      + ((1 / (2 * (Real.pi : ℂ))) *
-          (∫ t : ℝ,
-            ((digamma ((1 / 2 + (t : ℂ) * I) / 2)).re : ℂ) *
-              laplaceTransform (fun u ↦ deriv (deriv f) u) (s - (1 / 2 + (t : ℂ) * I))
-              / (s - (1 / 2 + (t : ℂ) * I)) ^ 2)
-          + laplaceTransform (fun u ↦ deriv (deriv f) u) s / s ^ 2) := by
+    let Φ : ℂ → ℂ := fun z ↦
+      ∫ y in (.Ioi (0 : ℝ)), kadiriTestFn f s y * exp (-z * (y : ℂ)) ∂volume
+    (∑' n : ℕ, (Λ n : ℂ) * kadiriTestFn f s (Real.log n)) =
+      Φ (-1) + Φ 0
+        - ∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ), Φ (-ρ.val)
+        - kadiriTestFn f s 0 * ((Real.log Real.pi : ℝ) : ℂ)
+        + ∑' n : ℕ, ((Λ n : ℂ) / (n : ℂ)) * kadiriTestFn f s (-Real.log n)
+        + (1 / (2 * (Real.pi : ℂ))) *
+            ∫ t : ℝ,
+              ((digamma ((1 / 2 + (t : ℂ) * I) / 2)).re : ℂ) *
+                Φ (-(1 / 2 + (t : ℂ) * I)) := by
+  obtain ⟨b, hb, hdec, hderiv_dec⟩ := kadiriTestFn_decay hf_supp hs
+  exact kadiri_thm_3_1_q1 (kadiriTestFn_contDiff hd hf_C2 hf_supp hf_d
+    hf_derivWithin_0 hf_derivWithin_d s) hb hdec hderiv_dec
+
+private lemma kadiriTestFn_laplaceTransform_at_zero_ibp {d : ℝ} (hd : 0 < d)
+    {f : ℝ → ℝ} (hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d))
+    (hf_supp : tsupport f ⊆ .Ico 0 d)
+    (hf_d : f d = 0)
+    (hf_derivWithin_0 : derivWithin f (.Icc 0 d) 0 = 0)
+    (hf_derivWithin_d : derivWithin f (.Icc 0 d) d = 0)
+    {s : ℂ} (hs : 1 < s.re) :
+    (∫ y in (.Ioi (0 : ℝ)), kadiriTestFn f s y * exp (-(0 : ℂ) * (y : ℂ)) ∂volume) =
+      -laplaceTransform (fun u ↦ deriv (deriv f) u) s / s ^ 2 := by
+  have hspos : 0 < (s + 0).re := by
+    simpa using lt_trans (by norm_num : (0 : ℝ) < 1) hs
+  have hsne : s ≠ 0 := by
+    intro h
+    rw [h] at hs
+    norm_num at hs
+  have hΦ := kadiriTestFn_laplaceTransform hd hf_C2 hf_supp s 0 hspos
+  have hF := laplaceTransform_ibp hd hf_C2 hf_supp hf_d hf_derivWithin_0 hf_derivWithin_d hsne
+  have hF0 : laplaceTransform f (s + 0) =
+      (f 0 : ℂ) / (s + 0) + laplaceTransform (fun u ↦ deriv (deriv f) u) s / s ^ 2 := by
+    simpa using hF
+  rw [hΦ, hF0]
+  field_simp [hsne]
+  ring_nf
+
+private lemma kadiriTestFn_laplaceTransform_at_neg_one {d : ℝ} (hd : 0 < d)
+    {f : ℝ → ℝ} (hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d))
+    (hf_supp : tsupport f ⊆ .Ico 0 d) {s : ℂ} (hs : 1 < s.re) :
+    (∫ y in (.Ioi (0 : ℝ)), kadiriTestFn f s y * exp (-(-1 : ℂ) * (y : ℂ)) ∂volume) =
+      (f 0 : ℂ) / (s - 1) - laplaceTransform f (s - 1) := by
+  have hpos : 0 < (s + (-1 : ℂ)).re := by
+    simp
+    linarith [hs]
+  have hΦ := kadiriTestFn_laplaceTransform hd hf_C2 hf_supp s (-1) hpos
+  simpa [sub_eq_add_neg] using hΦ
+
+private lemma kadiriTestFn_laplaceTransform_at_zeroIndex {d : ℝ} (hd : 0 < d)
+    {f : ℝ → ℝ} (hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d))
+    (hf_supp : tsupport f ⊆ .Ico 0 d) {s : ℂ} (hs : 1 < s.re)
+    (ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ)) :
+    (∫ y in (.Ioi (0 : ℝ)), kadiriTestFn f s y * exp (-(-ρ.val) * (y : ℂ)) ∂volume) =
+      (f 0 : ℂ) / (s - ρ.val) - laplaceTransform f (s - ρ.val) := by
+  have hρlt : ρ.val.re < 1 := ρ.property.1.2
+  have hpos : 0 < (s + -ρ.val).re := by
+    simp
+    linarith [hs, hρlt]
+  have hΦ := kadiriTestFn_laplaceTransform hd hf_C2 hf_supp s (-ρ.val) hpos
+  simpa [sub_eq_add_neg] using hΦ
+
+private lemma kadiriTestFn_zero_summable {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
+    (hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d))
+    (hf_supp : tsupport f ⊆ .Ico 0 d)
+    (hf_d : f d = 0)
+    (hf_derivWithin_0 : derivWithin f (.Icc 0 d) 0 = 0)
+    (hf_derivWithin_d : derivWithin f (.Icc 0 d) d = 0)
+    {s : ℂ} (hs : 1 < s.re) :
+    Summable (fun ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ) =>
+      (f 0 : ℂ) / (s - ρ.val) - laplaceTransform f (s - ρ.val)) := by
+  obtain ⟨b, hb, hdec, hderiv_dec⟩ := kadiriTestFn_decay hf_supp hs
+  have hzero := kadiri_thm_3_1_q1_zero_summable
+    (kadiriTestFn_contDiff hd hf_C2 hf_supp hf_d hf_derivWithin_0 hf_derivWithin_d s)
+    hb hdec hderiv_dec
+  refine hzero.congr ?_
+  intro ρ
+  exact kadiriTestFn_laplaceTransform_at_zeroIndex hd hf_C2 hf_supp hs ρ
+
+private lemma kadiriTestFn_laplaceTransform_gammaLine_ibp {d : ℝ} (hd : 0 < d)
+    {f : ℝ → ℝ} (hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d))
+    (hf_supp : tsupport f ⊆ .Ico 0 d)
+    (hf_d : f d = 0)
+    (hf_derivWithin_0 : derivWithin f (.Icc 0 d) 0 = 0)
+    (hf_derivWithin_d : derivWithin f (.Icc 0 d) d = 0)
+    {s : ℂ} (hs : 1 < s.re) (t : ℝ) :
+    (∫ y in (.Ioi (0 : ℝ)),
+        kadiriTestFn f s y * exp (- (-(1 / 2 + (t : ℂ) * I)) * (y : ℂ)) ∂volume) =
+      -laplaceTransform (fun u ↦ deriv (deriv f) u) (s - (1 / 2 + (t : ℂ) * I)) /
+        (s - (1 / 2 + (t : ℂ) * I)) ^ 2 := by
+  let z : ℂ := 1 / 2 + (t : ℂ) * I
+  have hwpos : 0 < (s + -z).re := by
+    dsimp [z]
+    simp [Complex.mul_re]
+    linarith [hs]
+  have hwne : s - z ≠ 0 := by
+    intro h
+    have hre : (s - z).re = 0 := by
+      rw [h]
+      simp
+    dsimp [z] at hre
+    simp [Complex.mul_re] at hre
+    linarith [hs]
+  have hΦ := kadiriTestFn_laplaceTransform hd hf_C2 hf_supp s (-z) hwpos
+  have hF := laplaceTransform_ibp hd hf_C2 hf_supp hf_d hf_derivWithin_0 hf_derivWithin_d hwne
+  have hFz : laplaceTransform f (s + -z) =
+      (f 0 : ℂ) / (s + -z) +
+        laplaceTransform (fun u ↦ deriv (deriv f) u) (s + -z) / (s + -z) ^ 2 := by
+    simpa [sub_eq_add_neg] using hF
+  rw [hΦ, hFz]
+  dsimp [z]
+  field_simp [hwne]
+  ring_nf
+
+private lemma kadiriTestFn_reflectedPrimeSum_zero (f : ℝ → ℝ) (s : ℂ) :
+    (∑' n : ℕ, ((Λ n : ℂ) / (n : ℂ)) * kadiriTestFn f s (-Real.log n)) = 0 := by
+  simp [kadiriTestFn_neg_log]
+
+private lemma kadiriTestFn_primeSide_pointwise (f : ℝ → ℝ) (s : ℂ) (n : ℕ) :
+    (Λ n : ℂ) * kadiriTestFn f s (Real.log n) =
+      (f 0 : ℂ) * ((Λ n : ℂ) / (n : ℂ) ^ s) -
+        ((Λ n : ℂ) / (n : ℂ) ^ s) * (f (Real.log n) : ℂ) := by
+  rcases Nat.eq_zero_or_pos n with rfl | hnpos
+  · simp [kadiriTestFn]
+  · have hn : 1 ≤ n := Nat.succ_le_iff.mpr hnpos
+    rw [kadiriTestFn_log f s hn]
+    ring
+
+private lemma kadiriTestFn_primeSide_tsum_congr (f : ℝ → ℝ) (s : ℂ) :
+    (∑' n : ℕ, (Λ n : ℂ) * kadiriTestFn f s (Real.log n)) =
+      (∑' n : ℕ, (
+        (f 0 : ℂ) * ((Λ n : ℂ) / (n : ℂ) ^ s) -
+          ((Λ n : ℂ) / (n : ℂ) ^ s) * (f (Real.log n) : ℂ))) := by
+  apply tsum_congr
+  intro n
+  exact kadiriTestFn_primeSide_pointwise f s n
+
+private lemma summable_vonMangoldt_div_cpow_of_one_lt_re {s : ℂ} (hs : 1 < s.re) :
+    Summable (fun n : ℕ => (Λ n : ℂ) / (n : ℂ) ^ s) := by
+  have hL : LSeriesSummable (fun n : ℕ => (Λ n : ℂ)) s :=
+    ArithmeticFunction.LSeriesSummable_vonMangoldt hs
+  rw [LSeriesSummable] at hL
+  refine hL.congr ?_
+  intro n
+  by_cases hn : n = 0
+  · simp [LSeries.term, hn]
+  · simp [LSeries.term, hn]
+
+private lemma kadiriTestFn_primeSide_tsum_split {d : ℝ} {f : ℝ → ℝ}
+    (hf_supp : tsupport f ⊆ .Ico 0 d) {s : ℂ}
+    (hΛs : Summable (fun n : ℕ => (Λ n : ℂ) / (n : ℂ) ^ s)) :
+    (∑' n : ℕ, (Λ n : ℂ) * kadiriTestFn f s (Real.log n)) =
+      (f 0 : ℂ) * (∑' n : ℕ, (Λ n : ℂ) / (n : ℂ) ^ s) -
+        (∑' n : ℕ, (((Λ n : ℂ) / (n : ℂ) ^ s) * (f (Real.log n) : ℂ))) := by
+  rw [kadiriTestFn_primeSide_tsum_congr]
+  have hf_log : Summable
+      (fun n : ℕ => ((Λ n : ℂ) / (n : ℂ) ^ s) * (f (Real.log n) : ℂ)) :=
+    summable_f_log hf_supp (fun n : ℕ => (Λ n : ℂ) / (n : ℂ) ^ s)
+  rw [Summable.tsum_sub (Summable.mul_left (f 0 : ℂ) hΛs) hf_log]
+  rw [tsum_mul_left]
+
+private lemma kadiriTestFn_primeSide_tsum_split_of_one_lt_re {d : ℝ} {f : ℝ → ℝ}
+    (hf_supp : tsupport f ⊆ .Ico 0 d) {s : ℂ} (hs : 1 < s.re) :
+    (∑' n : ℕ, (Λ n : ℂ) * kadiriTestFn f s (Real.log n)) =
+      (f 0 : ℂ) * (∑' n : ℕ, (Λ n : ℂ) / (n : ℂ) ^ s) -
+        (∑' n : ℕ, (((Λ n : ℂ) / (n : ℂ) ^ s) * (f (Real.log n) : ℂ))) :=
+  kadiriTestFn_primeSide_tsum_split hf_supp (summable_vonMangoldt_div_cpow_of_one_lt_re hs)
+
+private lemma kadiri_zero_sum_re_split {f : ℝ → ℝ} {s : ℂ}
+    (hComb : Summable (fun ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ) =>
+      (f 0 : ℂ) / (s - ρ.val) - laplaceTransform f (s - ρ.val)))
+    (hRecipRe : Summable (fun ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ) =>
+      (1 / (s - ρ.val)).re))
+    (hLapRe : Summable (fun ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ) =>
+      (laplaceTransform f (s - ρ.val)).re)) :
+    (∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ),
+        ((f 0 : ℂ) / (s - ρ.val) - laplaceTransform f (s - ρ.val))).re =
+      f 0 * (∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ),
+        (1 / (s - ρ.val)).re) -
+      ∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ),
+        (laplaceTransform f (s - ρ.val)).re := by
+  rw [RiemannZeta.WeilGuinand.re_tsum hComb]
+  have hsplit := Summable.tsum_sub (Summable.mul_left (f 0) hRecipRe) hLapRe
+  have hsplit' :
+      (∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ),
+          (f 0 * (1 / (s - ρ.val)).re - (laplaceTransform f (s - ρ.val)).re)) =
+        f 0 * (∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ),
+          (1 / (s - ρ.val)).re) -
+        ∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ),
+          (laplaceTransform f (s - ρ.val)).re := by
+    simpa [tsum_mul_left] using hsplit
+  rw [← hsplit']
+  apply tsum_congr
+  intro ρ
+  simp [Complex.sub_re, Complex.mul_re, Complex.ofReal_re, Complex.ofReal_im, zero_mul,
+    sub_zero, div_eq_mul_inv]
+
+private lemma kadiriTestFn_gammaLine_eq_neg_F2 {d : ℝ} (hd : 0 < d)
+    {f : ℝ → ℝ} (hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d))
+    (hf_supp : tsupport f ⊆ .Ico 0 d)
+    (hf_d : f d = 0)
+    (hf_derivWithin_0 : derivWithin f (.Icc 0 d) 0 = 0)
+    (hf_derivWithin_d : derivWithin f (.Icc 0 d) d = 0)
+    {s : ℂ} (hs : 1 < s.re) :
+    (1 / (2 * (Real.pi : ℂ))) *
+        (∫ t : ℝ,
+          ((digamma ((1 / 2 + (t : ℂ) * I) / 2)).re : ℂ) *
+            (∫ y in (.Ioi (0 : ℝ)),
+              kadiriTestFn f s y * exp (- (-(1 / 2 + (t : ℂ) * I)) * (y : ℂ)) ∂volume)) =
+      (1 / (2 * (Real.pi : ℂ))) *
+        (∫ t : ℝ,
+          -(((digamma ((1 / 2 + (t : ℂ) * I) / 2)).re : ℂ) *
+            (laplaceTransform (fun u ↦ deriv (deriv f) u) (s - (1 / 2 + (t : ℂ) * I)) /
+              (s - (1 / 2 + (t : ℂ) * I)) ^ 2))) := by
+  congr 1
+  apply integral_congr_ae
+  filter_upwards with t
+  rw [kadiriTestFn_laplaceTransform_gammaLine_ibp hd hf_C2 hf_supp hf_d hf_derivWithin_0
+    hf_derivWithin_d hs t]
+  ring
+
+private lemma gammaLine_neg_F2_neg_eq_pos {f : ℝ → ℝ} {s : ℂ} :
+    -((1 / (2 * (Real.pi : ℂ))) *
+        (∫ t : ℝ,
+          -(((digamma ((1 / 2 + (t : ℂ) * I) / 2)).re : ℂ) *
+            (laplaceTransform (fun u ↦ deriv (deriv f) u) (s - (1 / 2 + (t : ℂ) * I)) /
+              (s - (1 / 2 + (t : ℂ) * I)) ^ 2)))) =
+      (1 / (2 * (Real.pi : ℂ))) *
+        (∫ t : ℝ,
+          ((digamma ((1 / 2 + (t : ℂ) * I) / 2)).re : ℂ) *
+            laplaceTransform (fun u ↦ deriv (deriv f) u) (s - (1 / 2 + (t : ℂ) * I)) /
+            (s - (1 / 2 + (t : ℂ) * I)) ^ 2) := by
+  let G : ℝ → ℂ := fun t => ((digamma ((1 / 2 + (t : ℂ) * I) / 2)).re : ℂ)
+  let H : ℝ → ℂ := fun t =>
+    laplaceTransform (fun u ↦ deriv (deriv f) u) (s - (1 / 2 + (t : ℂ) * I)) /
+      (s - (1 / 2 + (t : ℂ) * I)) ^ 2
+  have hInt : (∫ t : ℝ, G t * H t) =
+      ∫ t : ℝ,
+        ((digamma ((1 / 2 + (t : ℂ) * I) / 2)).re : ℂ) *
+          laplaceTransform (fun u ↦ deriv (deriv f) u) (s - (1 / 2 + (t : ℂ) * I)) /
+          (s - (1 / 2 + (t : ℂ) * I)) ^ 2 := by
+    apply integral_congr_ae
+    filter_upwards with t
+    dsimp [G, H]
+    ring
+  change -((1 / (2 * (Real.pi : ℂ))) * (∫ t : ℝ, -(G t * H t))) =
+      (1 / (2 * (Real.pi : ℂ))) *
+        (∫ t : ℝ,
+          ((digamma ((1 / 2 + (t : ℂ) * I) / 2)).re : ℂ) *
+            laplaceTransform (fun u ↦ deriv (deriv f) u) (s - (1 / 2 + (t : ℂ) * I)) /
+            (s - (1 / 2 + (t : ℂ) * I)) ^ 2)
+  rw [integral_neg, hInt]
+  ring
+
+private theorem kadiriTestFn_q1_substituted {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
+    (hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d))
+    (hf_supp : tsupport f ⊆ .Ico 0 d)
+    (hf_d : f d = 0)
+    (hf_derivWithin_0 : derivWithin f (.Icc 0 d) 0 = 0)
+    (hf_derivWithin_d : derivWithin f (.Icc 0 d) d = 0)
+    {s : ℂ} (hs : 1 < s.re) :
+    (∑' n : ℕ, (Λ n : ℂ) * kadiriTestFn f s (Real.log n)) =
+      ((f 0 : ℂ) / (s - 1) - laplaceTransform f (s - 1))
+        - laplaceTransform (fun u ↦ deriv (deriv f) u) s / s ^ 2
+        - ∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ),
+            ((f 0 : ℂ) / (s - ρ.val) - laplaceTransform f (s - ρ.val))
+        + (1 / (2 * (Real.pi : ℂ))) *
+            (∫ t : ℝ,
+              -(((digamma ((1 / 2 + (t : ℂ) * I) / 2)).re : ℂ) *
+                (laplaceTransform (fun u ↦ deriv (deriv f) u)
+                  (s - (1 / 2 + (t : ℂ) * I)) /
+                  (s - (1 / 2 + (t : ℂ) * I)) ^ 2))) := by
+  have h := kadiri_thm_3_1_q1_kadiriTestFn hd hf_C2 hf_supp hf_d hf_derivWithin_0
+    hf_derivWithin_d hs
+  dsimp only at h
+  have hzero :
+      (∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ),
+          ∫ y in Set.Ioi (0 : ℝ),
+            kadiriTestFn f s y * exp (-(-↑ρ) * (y : ℂ)) ∂volume) =
+        ∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ),
+          ((f 0 : ℂ) / (s - ρ.val) - laplaceTransform f (s - ρ.val)) := by
+    apply tsum_congr
+    intro ρ
+    exact kadiriTestFn_laplaceTransform_at_zeroIndex hd hf_C2 hf_supp hs ρ
+  rw [kadiriTestFn_laplaceTransform_at_neg_one hd hf_C2 hf_supp hs,
+    kadiriTestFn_laplaceTransform_at_zero_ibp hd hf_C2 hf_supp hf_d hf_derivWithin_0
+      hf_derivWithin_d hs,
+    hzero, kadiriTestFn_zero, zero_mul, kadiriTestFn_reflectedPrimeSum_zero,
+    kadiriTestFn_gammaLine_eq_neg_F2 hd hf_C2 hf_supp hf_d hf_derivWithin_0
+      hf_derivWithin_d hs] at h
+  simpa [sub_eq_add_neg, add_assoc, neg_div] using h
+
+/-! ### Auxiliary: real zero-sum form of equation (16)
+
+Kadiri writes the reciprocal zero contribution as
+`Re (∑ρ 1 / (s - ρ))`. In Lean we keep the convergent object explicit as the real sum
+`∑ρ Re (1 / (s - ρ))`; the raw complex reciprocal series is not the right unconditionally
+summable object. -/
+
+private theorem identity_16_real_of_zero_re_summable {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
+    (hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d))
+    (hf_supp : tsupport f ⊆ .Ico 0 d)
+    (hf_d : f d = 0)
+    (hf_derivWithin_0 : derivWithin f (.Icc 0 d) 0 = 0)
+    (hf_derivWithin_d : derivWithin f (.Icc 0 d) d = 0)
+    {s : ℂ} (hs : 1 < s.re)
+    (hComb : Summable (fun ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ) =>
+      (f 0 : ℂ) / (s - ρ.val) - laplaceTransform f (s - ρ.val)))
+    (hRecipRe : Summable (fun ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ) =>
+      (1 / (s - ρ.val)).re))
+    (hLapRe : Summable (fun ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ) =>
+      (laplaceTransform f (s - ρ.val)).re)) :
+    (∑' n : ℕ, (Λ n : ℂ) / (n : ℂ) ^ s * ((f (Real.log n) : ℝ) : ℂ)).re =
+      f 0 * (((∑' n : ℕ, (Λ n : ℂ) / (n : ℂ) ^ s) - 1 / (s - 1)).re +
+        ∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ),
+          (1 / (s - ρ.val)).re)
+        + (laplaceTransform f (s - 1)).re
+        - ∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) .univ,
+            (laplaceTransform f (s - ρ.val)).re
+        + ((1 / (2 * (Real.pi : ℂ))) *
+            (∫ t : ℝ,
+              ((digamma ((1 / 2 + (t : ℂ) * I) / 2)).re : ℂ) *
+                laplaceTransform (fun u ↦ deriv (deriv f) u)
+                  (s - (1 / 2 + (t : ℂ) * I))
+                / (s - (1 / 2 + (t : ℂ) * I)) ^ 2)
+            + laplaceTransform (fun u ↦ deriv (deriv f) u) s / s ^ 2).re := by
+  have hQ := kadiriTestFn_q1_substituted hd hf_C2 hf_supp hf_d hf_derivWithin_0
+    hf_derivWithin_d hs
+  rw [kadiriTestFn_primeSide_tsum_split_of_one_lt_re hf_supp hs] at hQ
+  have hz := kadiri_zero_sum_re_split hComb hRecipRe hLapRe
+  rw [← gammaLine_neg_F2_neg_eq_pos (f := f) (s := s)]
+  have hmain := congrArg Complex.re hQ
+  simp only [Complex.add_re, Complex.sub_re, Complex.neg_re, Complex.mul_re, Complex.ofReal_re,
+    Complex.ofReal_im, zero_mul, sub_zero] at hmain ⊢
+  rw [hz] at hmain
+  simp [div_eq_mul_inv, Complex.mul_re, Complex.ofReal_re, Complex.ofReal_im] at hmain ⊢
+  linear_combination -hmain
+
+@[blueprint
+  "kadiri-summable-recip-re-at-zeros"
+  (title := "Summability of the real reciprocal zero sum")
+  (statement := /-- For every $s$ with $\Re s > 1$, the real reciprocal zero sum
+  $\sum_{\rho \in Z(\zeta)} \Re \frac{1}{s-\rho}$ is convergent. -/)
+  (proof := /-- Write $\rho = \beta+i\gamma$. Since $0 < \beta < 1$ and $\Re s > 1$,
+  $\Re(s-\rho)$ stays in a bounded positive interval and
+  $$\Re\frac{1}{s-\rho}
+    = \frac{\Re s-\beta}{(\Re s-\beta)^2 + (\Im s-\gamma)^2}.$$
+  Away from the finitely many zeros with $|\Im s-\gamma| < 1$, this is
+  $O(1/(\Im s-\gamma)^2)$. Combine this with Backlund/Riemann--von Mangoldt zero counting
+  to sum the tail by Abel summation. To be formalised. -/)
+  (latexEnv := "lemma")
+  (discussion := 1478)]
+theorem summable_recip_re_at_zeros {s : ℂ} (hs : 1 < s.re) :
+    Summable (fun ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ) =>
+      (1 / (s - ρ.val)).re) := by
   sorry
 
 @[blueprint
@@ -1074,8 +2192,9 @@ private theorem identity_16_complex {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
   (statement := /-- Under the hypotheses of \ref{kadiri-prop-2-1}: for every
   $s \in \mathbb{C}$ with $\Re s > 1$,
   $$ \Re \sum_{n \geq 1} \frac{\Lambda(n)}{n^s} f(\log n)
-   = f(0) \Re \Bigl( \sum_{n \geq 1} \frac{\Lambda(n)}{n^s} - \frac{1}{s - 1}
-                     + \sum_{\rho \in Z(\zeta)} \frac{1}{s - \rho} \Bigr)
+   = f(0) \left( \Re \Bigl( \sum_{n \geq 1} \frac{\Lambda(n)}{n^s}
+                     - \frac{1}{s - 1} \Bigr)
+                     + \sum_{\rho \in Z(\zeta)} \Re \frac{1}{s - \rho} \right)
    + \Re F(s - 1) - \sum_{\rho \in Z(\zeta)} \Re F(s - \rho)
    + \Re \Bigl( \frac{1}{2\pi i} \int_{1/2 - i\infty}^{1/2 + i\infty}
        \Re \tfrac{\Gamma'}{\Gamma}\!\left(\tfrac{z}{2}\right) \frac{F_2(s - z)}{(s - z)^2}\, dz
@@ -1083,9 +2202,8 @@ private theorem identity_16_complex {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
   This is the form obtained from \ref{kadiri-thm-3-1-q1} (the Weil-type explicit formula,
   specialized to $q = 1$, $\chi$ trivial) by taking the parametrised test function
   $\varphi(y) = (f(0) - f(y)) e^{-y s} \mathbf{1}_{y \geq 0}$. The restriction $\Re s > 1$
-  is where the Dirichlet series for $-\zeta'/\zeta(s)$ converges absolutely and the
-  $\sum_\rho 1/(s - \rho)$ regularization makes sense; this is also the range needed for
-  Kadiri's zero-free-region argument. -/)
+  is where the Dirichlet series for $-\zeta'/\zeta(s)$ converges absolutely; this is also
+  the range needed for Kadiri's zero-free-region argument. -/)
   (proof := /-- Apply \ref{kadiri-thm-3-1-q1} to the Kadiri test function
   $\varphi(\cdot;\, s) = \mathrm{kadiriTestFn}\, f\, s$ (\ref{kadiri-test-fn}); its hypotheses
   are discharged by \ref{kadiri-test-fn-contDiff} ($\varphi$ is $C^1$) and
@@ -1103,7 +2221,8 @@ private theorem identity_16_complex {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
   $\sum_n \Lambda(n) \varphi(\log n;\, s) = f(0) \sum_n \Lambda(n)/n^s
                                             - \sum_n \Lambda(n) f(\log n)/n^s$, solving for
   $\sum_n \Lambda(n) f(\log n)/n^s$, substituting the $\Phi$ values, and taking real parts,
-  yields the right-hand side of (16). To be formalised. -/)
+  yields the right-hand side of (16), with the reciprocal zero contribution represented as
+  the real convergent series $\sum_\rho \Re(1/(s-\rho))$. To be formalised. -/)
   (latexEnv := "lemma")
   (discussion := 1488)]
 theorem identity_16 {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
@@ -1117,10 +2236,9 @@ theorem identity_16 {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
       derivWithin (fun x ↦ derivWithin f (.Icc 0 d) x) (.Icc 0 d) d = 0)
     {s : ℂ} (hs : 1 < s.re) :
     (∑' n : ℕ, (Λ n : ℂ) / (n : ℂ) ^ s * ((f (Real.log n) : ℝ) : ℂ)).re =
-      f 0 * ((∑' n : ℕ, (Λ n : ℂ) / (n : ℂ) ^ s)
-              - 1 / (s - 1)
-              + ∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ),
-                  1 / (s - ρ.val)).re
+      f 0 * (((∑' n : ℕ, (Λ n : ℂ) / (n : ℂ) ^ s) - 1 / (s - 1)).re +
+        ∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ),
+          (1 / (s - ρ.val)).re)
         + (laplaceTransform f (s - 1)).re
         - ∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) .univ,
             (laplaceTransform f (s - ρ.val)).re
@@ -1131,30 +2249,22 @@ theorem identity_16 {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
                   (s - (1 / 2 + (t : ℂ) * I))
                 / (s - (1 / 2 + (t : ℂ) * I)) ^ 2)
             + laplaceTransform (fun u ↦ deriv (deriv f) u) s / s ^ 2).re := by
-  -- Reduce to the complex (pre-`Re`) form, then distribute `Re` over `+`, `-`, the
-  -- $(f(0) : \mathbb{C}) \cdot ?$ factor (since $f(0) \in \mathbb{R}$), and the
-  -- $\rho$-tsum (via `Complex.reCLM`).
-  have hcomplex := identity_16_complex hd hf_C2 hf_supp hf_d hf_derivWithin_0
-    hf_derivWithin_d
-    hf_secondWithin_d hs
-  -- Complex summability of `∑ρ F(s − ρ)`. Pending: derive from `summable_lap_re_at_zeros`
-  -- together with an analogous Im-summability — would need a `laplaceTransform_im_decay`
-  -- lemma paralleling `kadiri-laplace-re-decay`.
-  have hSumm : Summable
-      (fun ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ) ↦
-        laplaceTransform f (s - ρ.val)) := by
+  have hComb : Summable
+      (fun ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ) =>
+        (f 0 : ℂ) / (s - ρ.val) - laplaceTransform f (s - ρ.val)) :=
+    kadiriTestFn_zero_summable hd hf_C2 hf_supp hf_d hf_derivWithin_0 hf_derivWithin_d hs
+  have hRecipRe : Summable
+      (fun ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ) =>
+        (1 / (s - ρ.val)).re) :=
+    summable_recip_re_at_zeros hs
+  have hLapRe : Summable
+      (fun ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ) =>
+        (laplaceTransform f (s - ρ.val)).re) := by
+    -- TODO: supplied later as `summable_lap_re_at_zeros`; this theorem precedes that named
+    -- analytic auxiliary so that the section follows Kadiri's derivation order.
     sorry
-  -- Commute the ρ-tsum with `.re` via the continuous linear map `Complex.reCLM`.
-  have htsum_re :
-      (∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ),
-          laplaceTransform f (s - ρ.val)).re =
-      ∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ),
-          (laplaceTransform f (s - ρ.val)).re := by
-    simpa using RiemannZeta.WeilGuinand.re_tsum hSumm
-  -- Substitute the complex form and distribute `.re`.
-  rw [hcomplex]
-  simp only [Complex.add_re, Complex.sub_re, Complex.mul_re,
-             Complex.ofReal_re, Complex.ofReal_im, zero_mul, sub_zero, htsum_re]
+  exact identity_16_real_of_zero_re_summable hd hf_C2 hf_supp hf_d hf_derivWithin_0
+    hf_derivWithin_d hs hComb hRecipRe hLapRe
 
 -- Kept (commented out) as a stub for potential future use. The current Kadiri argument
 -- (`identity_16`, `re_inner_eq`, `prop_2_1`, `eq_5`) is stated and proved on the
@@ -1212,10 +2322,32 @@ $|\Re F(s - \rho)| \ll 1/\gamma^2$. -/
   $\sum_\rho 1/\rho$ to $\Re B$. To be formalised. -/)
   (latexEnv := "lemma")
   (discussion := 1476)]
-theorem re_hadamardB_eq (B : ℂ) :
-    B.re =
+theorem re_hadamardB_eq :
+    hadamardB.re =
     -∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ),
         (1 / (ρ.val : ℂ)).re := by
+  sorry
+
+@[blueprint
+  "kadiri-hadamard-zero-log-sum-re-split"
+  (title := "Real-part split of the Hadamard zero log-derivative sum")
+  (statement := /-- For $\Re s > 1$, the real part of the genus-one Hadamard zero sum splits as
+  $$\Re\sum_\rho\left(\frac1\rho+\frac1{s-\rho}\right)
+      = \sum_\rho \Re\frac1\rho + \sum_\rho \Re\frac1{s-\rho}.$$ -/)
+  (proof := /-- Use the genus-one zero-term summability from the xi Hadamard product, transported
+  from the divisor-zero index to `riemannZeta.zeroes_rect`, together with
+  \ref{kadiri-summable-recip-re-at-zeros} and the corresponding real summability of
+  $\Re(1/\rho)$ encoded in \ref{kadiri-re-hadamardB-eq}. Then apply `Complex.reCLM.map_tsum`
+  and `Summable.tsum_add`. To be formalised. -/)
+  (latexEnv := "lemma")
+  (discussion := 1478)]
+theorem hadamard_zero_log_sum_re_split {s : ℂ} (hs : 1 < s.re) :
+    ((∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ),
+        (1 / (ρ.val : ℂ) + 1 / (s - ρ.val))).re) =
+      (∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ),
+        (1 / (ρ.val : ℂ)).re) +
+      ∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ),
+        (1 / (s - ρ.val)).re := by
   sorry
 
 @[blueprint
@@ -1309,8 +2441,8 @@ theorem summable_lap_re_at_zeros {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
   "kadiri-re-inner-eq"
   (title := "Inner real-part identity: collapsing to $T_1$")
   (statement := /-- For every $s \in \mathbb{C}$ with $\Re s > 1$,
-  $$ \Re \Bigl( \sum_{n \geq 1} \frac{\Lambda(n)}{n^s} - \frac{1}{s - 1}
-                + \sum_{\rho \in Z(\zeta)} \frac{1}{s - \rho} \Bigr)
+  $$ \Re \Bigl( \sum_{n \geq 1} \frac{\Lambda(n)}{n^s} - \frac{1}{s - 1} \Bigr)
+     + \sum_{\rho \in Z(\zeta)} \Re \frac{1}{s - \rho}
    = -\tfrac{1}{2} \log \pi
      + \tfrac{1}{2} \Re \tfrac{\Gamma'}{\Gamma}\!\left(\tfrac{s}{2}+1\right). $$
   This is the identity that turns the $f(0)$-coefficient of equation (16) into the $T_1$
@@ -1325,12 +2457,35 @@ theorem summable_lap_re_at_zeros {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
   (latexEnv := "lemma")
   (discussion := 1478)]
 theorem re_inner_eq {s : ℂ} (hs : 1 < s.re) :
-    ((∑' n : ℕ, (Λ n : ℂ) / (n : ℂ) ^ s) - 1 / (s - 1) +
-       ∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ),
-         1 / (s - ρ.val)).re =
+    ((∑' n : ℕ, (Λ n : ℂ) / (n : ℂ) ^ s) - 1 / (s - 1)).re +
+       (∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ),
+         (1 / (s - ρ.val)).re) =
     -(1 / 2 : ℝ) * Real.log Real.pi +
       (1 / 2 : ℝ) * (digamma (s / 2 + 1)).re := by
-  sorry
+  have hs1 : s ≠ 1 := by
+    intro h
+    norm_num [h] at hs
+  have hsZ : s ∉ riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ) := by
+    intro hz
+    have hlt : s.re < 1 := hz.1.2
+    linarith
+  have hD : -deriv riemannZeta s / riemannZeta s =
+      ∑' n : ℕ, (Λ n : ℂ) / (n : ℂ) ^ s := by
+    rw [← ArithmeticFunction.LSeries_vonMangoldt_eq_deriv_riemannZeta_div hs]
+    dsimp [LSeries, LSeries.term]
+    apply tsum_congr
+    intro n
+    by_cases hn : n = 0
+    · simp [hn]
+    · simp [hn, div_eq_mul_inv]
+  have hH := hadamard_identity s hs1 hsZ
+  rw [hD] at hH
+  have hR := congrArg Complex.re hH
+  simp only [Complex.add_re, Complex.sub_re, Complex.neg_re, Complex.mul_re, Complex.ofReal_re,
+    Complex.ofReal_im] at hR ⊢
+  rw [hadamard_zero_log_sum_re_split hs, re_hadamardB_eq] at hR
+  norm_num at hR ⊢
+  linear_combination hR
 
 /-! ## Named terms from Kadiri's explicit formula
 
