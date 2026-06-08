@@ -599,6 +599,29 @@ theorem neg_zeta_logDeriv_eq_of_riemannXi_hadamardPolynomial
   rw [Polynomial.eval_derivative_eq_eval_derivative_zero_of_degree_le_one hdeg s] at h
   exact h
 
+/-- Hadamard logarithmic-derivative identity in the natural divisor-indexed form.
+
+This is the direct consequence of the existing xi Hadamard infrastructure.  The divisor index
+counts zeros with analytic multiplicity; translating this to Kadiri's `zeroes_rect` notation is a
+separate reindexing step. -/
+theorem hadamard_identity_divisorIndexed {s : ℂ}
+    (hs : 1 < s.re)
+    (hΓdiff : ∀ m : ℕ, s / 2 + 1 ≠ -m)
+    (hΓ : zetaGammaFactor s ≠ 0)
+    (hz : ∀ p : Complex.Hadamard.divisorZeroIndex₀ riemannXi (Set.univ : Set ℂ),
+      s ≠ Complex.Hadamard.divisorZeroIndex₀_val p) :
+    -deriv riemannZeta s / riemannZeta s =
+      -hadamardB
+      - ∑' p : Complex.Hadamard.divisorZeroIndex₀ riemannXi (Set.univ : Set ℂ),
+          (1 / (s - Complex.Hadamard.divisorZeroIndex₀_val p) +
+            1 / Complex.Hadamard.divisorZeroIndex₀_val p)
+      + 1 / (s - 1)
+      - (1 / 2 : ℂ) * Real.log Real.pi
+      + (1 / 2 : ℂ) * digamma (s / 2 + 1) := by
+  rcases hadamardB_spec with ⟨P, hdeg, hfac, hB⟩
+  have h := neg_zeta_logDeriv_eq_of_riemannXi_hadamardPolynomial hdeg hfac s hs hΓdiff hΓ hz
+  rwa [← hB] at h
+
 /-- Structured `q = 1`, trivial-character Weil--Guinand formula. This is the analytic
 contour-shift theorem; the displayed equality below is a projection of this structure. -/
 theorem kadiri_thm_3_1_q1_QOneFormula_core {φ : ℝ → ℂ} (_hφ : ContDiff ℝ 1 φ)
@@ -2187,6 +2210,33 @@ theorem summable_recip_re_at_zeros {s : ℂ} (hs : 1 < s.re) :
   sorry
 
 @[blueprint
+  "kadiri-summable-lap-at-zeros"
+  (title := "Summability of $\\sum_\\rho \\Re F(s - \\rho)$")
+  (statement := /-- Under the hypotheses of \ref{kadiri-prop-2-1}, the sum
+  $\sum_{\rho \in Z(\zeta)} \Re F(s - \rho)$ over the non-trivial zeros of $\zeta$ is
+  convergent (Lean: `Summable`). -/)
+  (proof := /-- Combine \ref{kadiri-laplace-re-decay} (giving $|\Re F(s-\rho)| \leq
+  C/|\Im(s-\rho)|^2 = C/(\Im s - \gamma)^2$ for $|\gamma|$ large, since the real part
+  $\Re(s-\rho) = \Re s - \beta$ stays in the bounded strip $[\Re s - 1, \Re s]$) with
+  \ref{kadiri-backlund-bound} (giving $N(T) \ll T \log T$, hence by Abel summation
+  $\sum_{|\gamma| \geq 1} 1/|\gamma|^2 < \infty$). Bound finitely many small-$|\gamma|$
+  terms by hand. To be formalised. -/)
+  (latexEnv := "lemma")
+  (discussion := 1477)]
+theorem summable_lap_re_at_zeros {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
+    (hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d))
+    (hf_supp : tsupport f ⊆ .Ico 0 d)
+    (hf_d : f d = 0)
+    (hf_derivWithin_0 : derivWithin f (.Icc 0 d) 0 = 0)
+    (hf_derivWithin_d : derivWithin f (.Icc 0 d) d = 0)
+    (hf_secondWithin_d :
+      derivWithin (fun x ↦ derivWithin f (.Icc 0 d) x) (.Icc 0 d) d = 0)
+    (s : ℂ) :
+    Summable (fun ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ) ↦
+                (laplaceTransform f (s - ρ.val)).re) := by
+  sorry
+
+@[blueprint
   "kadiri-identity-16"
   (title := "Equation (16) of \\cite{Kadiri2005}: intermediate identity")
   (statement := /-- Under the hypotheses of \ref{kadiri-prop-2-1}: for every
@@ -2226,7 +2276,6 @@ theorem summable_recip_re_at_zeros {s : ℂ} (hs : 1 < s.re) :
   (latexEnv := "lemma")
   (discussion := 1488)]
 theorem identity_16 {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
-    (hf_nonneg : ∀ t, 0 ≤ f t)
     (hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d))
     (hf_supp : tsupport f ⊆ .Ico 0 d)
     (hf_d : f d = 0)
@@ -2259,10 +2308,9 @@ theorem identity_16 {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
     summable_recip_re_at_zeros hs
   have hLapRe : Summable
       (fun ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ) =>
-        (laplaceTransform f (s - ρ.val)).re) := by
-    -- TODO: supplied later as `summable_lap_re_at_zeros`; this theorem precedes that named
-    -- analytic auxiliary so that the section follows Kadiri's derivation order.
-    sorry
+        (laplaceTransform f (s - ρ.val)).re) :=
+    summable_lap_re_at_zeros hd hf_C2 hf_supp hf_d hf_derivWithin_0
+      hf_derivWithin_d hf_secondWithin_d s
   exact identity_16_real_of_zero_re_summable hd hf_C2 hf_supp hf_d hf_derivWithin_0
     hf_derivWithin_d hs hComb hRecipRe hLapRe
 
@@ -2396,46 +2444,157 @@ theorem backlund_bound : riemannZeta.Riemann_vonMangoldt_bound 0.137 0.443 6.1 :
   (latexEnv := "lemma")
   (discussion := 1487)]
 theorem laplaceTransform_re_decay {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
-    (hf_nonneg : ∀ t, 0 ≤ f t)
     (hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d))
     (hf_supp : tsupport f ⊆ .Ico 0 d)
     (hf_d : f d = 0)
     (hf_derivWithin_0 : derivWithin f (.Icc 0 d) 0 = 0)
     (hf_derivWithin_d : derivWithin f (.Icc 0 d) d = 0)
-    (hf_secondWithin_d :
-      derivWithin (fun x ↦ derivWithin f (.Icc 0 d) x) (.Icc 0 d) d = 0)
     (σ₀ σ₁ : ℝ) :
     ∃ C : ℝ, ∀ s : ℂ, σ₀ ≤ s.re → s.re ≤ σ₁ → 1 ≤ |s.im| →
       |(laplaceTransform f s).re| ≤ C / s.im ^ 2 := by
-  sorry
-
-@[blueprint
-  "kadiri-summable-lap-at-zeros"
-  (title := "Summability of $\\sum_\\rho \\Re F(s - \\rho)$")
-  (statement := /-- Under the hypotheses of \ref{kadiri-prop-2-1}, the sum
-  $\sum_{\rho \in Z(\zeta)} \Re F(s - \rho)$ over the non-trivial zeros of $\zeta$ is
-  convergent (Lean: `Summable`). -/)
-  (proof := /-- Combine \ref{kadiri-laplace-re-decay} (giving $|\Re F(s-\rho)| \leq
-  C/|\Im(s-\rho)|^2 = C/(\Im s - \gamma)^2$ for $|\gamma|$ large, since the real part
-  $\Re(s-\rho) = \Re s - \beta$ stays in the bounded strip $[\Re s - 1, \Re s]$) with
-  \ref{kadiri-backlund-bound} (giving $N(T) \ll T \log T$, hence by Abel summation
-  $\sum_{|\gamma| \geq 1} 1/|\gamma|^2 < \infty$). Bound finitely many small-$|\gamma|$
-  terms by hand. To be formalised. -/)
-  (latexEnv := "lemma")
-  (discussion := 1477)]
-theorem summable_lap_re_at_zeros {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
-    (hf_nonneg : ∀ t, 0 ≤ f t)
-    (hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d))
-    (hf_supp : tsupport f ⊆ .Ico 0 d)
-    (hf_d : f d = 0)
-    (hf_derivWithin_0 : derivWithin f (.Icc 0 d) 0 = 0)
-    (hf_derivWithin_d : derivWithin f (.Icc 0 d) d = 0)
-    (hf_secondWithin_d :
-      derivWithin (fun x ↦ derivWithin f (.Icc 0 d) x) (.Icc 0 d) d = 0)
-    (s : ℂ) :
-    Summable (fun ρ : riemannZeta.zeroes_rect (.Ioo 0 1) (.univ : Set ℝ) ↦
-                (laplaceTransform f (s - ρ.val)).re) := by
-  sorry
+  let A : ℝ := max |σ₀| |σ₁|
+  let g : ℝ → ℝ := fun x ↦ derivWithin f (Set.Icc 0 d) x
+  have hg_C1 : ContDiffOn ℝ 1 g (Set.Icc 0 d) := by
+    simpa [g] using
+      hf_C2.derivWithin (uniqueDiffOn_Icc hd)
+        (by norm_num : (1 : WithTop ℕ∞) + 1 ≤ 2)
+  have hsecondWithin_cont :
+      ContinuousOn (fun x ↦ derivWithin g (Set.Icc 0 d) x) (Set.Icc 0 d) :=
+    hg_C1.continuousOn_derivWithin (uniqueDiffOn_Icc hd)
+      (by norm_num : (1 : WithTop ℕ∞) ≤ 1)
+  rcases IsCompact.exists_bound_of_continuousOn isCompact_Icc hsecondWithin_cont with
+    ⟨C₂, hC₂⟩
+  let M : ℝ := max C₂ |deriv (deriv f) d|
+  let E : ℝ := Real.exp (|σ₀| * d)
+  have hM_nonneg : 0 ≤ M := by
+    exact (abs_nonneg (deriv (deriv f) d)).trans (le_max_right C₂ |deriv (deriv f) d|)
+  have hE_nonneg : 0 ≤ E := by positivity
+  have hsecond_bound :
+      ∀ x ∈ Set.Ioc (0 : ℝ) d,
+        ‖(((deriv (deriv f) x : ℝ) : ℂ))‖ ≤ M := by
+    intro x hx
+    by_cases hxd : x = d
+    · subst x
+      simp [M]
+    · have hxIoo : x ∈ Set.Ioo (0 : ℝ) d := ⟨hx.1, lt_of_le_of_ne hx.2 hxd⟩
+      have hxIcc : x ∈ Set.Icc (0 : ℝ) d := ⟨hx.1.le, hx.2⟩
+      have hg_eventually : g =ᶠ[nhds x] deriv f := by
+        refine (Set.EqOn.eventuallyEq_of_mem ?_ (Ioo_mem_nhds hxIoo.1 hxIoo.2))
+        intro y hy
+        dsimp [g]
+        rw [derivWithin_of_mem_nhds (Icc_mem_nhds hy.1 hy.2)]
+      have hwithin : derivWithin g (Set.Icc 0 d) x = deriv g x :=
+        derivWithin_of_mem_nhds (Icc_mem_nhds hxIoo.1 hxIoo.2)
+      have hderiv : deriv g x = deriv (deriv f) x := hg_eventually.deriv_eq
+      have hbound : ‖derivWithin g (Set.Icc 0 d) x‖ ≤ M :=
+        (hC₂ x hxIcc).trans (le_max_left C₂ |deriv (deriv f) d|)
+      simpa [RCLike.norm_ofReal, hwithin, hderiv] using hbound
+  refine ⟨|f 0| * A + M * E * d, ?_⟩
+  intro s hσ₀ hσ₁ him
+  have hs_ne : s ≠ 0 := by
+    intro hs0
+    have : |s.im| = 0 := by simp [hs0]
+    linarith
+  have hy_ne : s.im ≠ 0 := by
+    intro hy
+    rw [hy, abs_zero] at him
+    norm_num at him
+  have hy_sq_pos : 0 < s.im ^ 2 := sq_pos_of_ne_zero hy_ne
+  have hnormSq_ge_im : s.im ^ 2 ≤ Complex.normSq s := by
+    rw [Complex.normSq_apply]
+    nlinarith [sq_nonneg s.re]
+  have hnormSq_pos : 0 < Complex.normSq s := hy_sq_pos.trans_le hnormSq_ge_im
+  have hnorm_ge_im : s.im ^ 2 ≤ ‖s‖ ^ 2 := by
+    rwa [← Complex.normSq_eq_norm_sq]
+  have hA_re : |s.re| ≤ A := by
+    exact abs_le_max_abs_abs hσ₀ hσ₁
+  have hF₂_bound :
+      ‖laplaceTransform (fun u ↦ deriv (deriv f) u) s‖ ≤ M * E * d := by
+    rw [laplaceTransform_deriv_deriv_eq_intervalIntegral hd hf_supp s]
+    calc
+      ‖∫ x in (0 : ℝ)..d,
+          ((deriv (𝕜 := ℝ) (deriv (𝕜 := ℝ) f) x : ℝ) : ℂ) *
+            exp (-s * (x : ℂ)) ∂volume‖
+          ≤ (M * E) * |d - 0| := by
+            refine intervalIntegral.norm_integral_le_of_norm_le_const ?_
+            intro x hx
+            have hxIoc : x ∈ Set.Ioc (0 : ℝ) d := by
+              simpa [Set.uIoc_of_le hd.le] using hx
+            have hx0 : 0 ≤ x := hxIoc.1.le
+            have hxd : x ≤ d := hxIoc.2
+            have h_exp : ‖exp (-s * (x : ℂ))‖ ≤ E := by
+              rw [Complex.norm_exp]
+              apply Real.exp_le_exp.mpr
+              have hre : (-s * (x : ℂ)).re = -s.re * x := by
+                simp [Complex.mul_re]
+              rw [hre]
+              calc
+                -s.re * x ≤ -σ₀ * x := by
+                  exact mul_le_mul_of_nonneg_right (neg_le_neg hσ₀) hx0
+                _ ≤ |σ₀| * x := by
+                  exact mul_le_mul_of_nonneg_right (neg_le_abs σ₀) hx0
+                _ ≤ |σ₀| * d := by
+                  exact mul_le_mul_of_nonneg_left hxd (abs_nonneg σ₀)
+            have h_second := hsecond_bound x hxIoc
+            calc
+              ‖(((deriv (deriv f) x : ℝ) : ℂ)) * exp (-s * (x : ℂ))‖
+                  = ‖(((deriv (deriv f) x : ℝ) : ℂ))‖ * ‖exp (-s * (x : ℂ))‖ := by
+                    rw [norm_mul]
+              _ ≤ M * E := by
+                exact mul_le_mul h_second h_exp (norm_nonneg _) hM_nonneg
+      _ = M * E * d := by
+        rw [abs_of_nonneg (sub_nonneg.mpr hd.le)]
+        ring
+  have hterm₁ :
+      |(((f 0 : ℂ) / s).re)| ≤ |f 0| * A / s.im ^ 2 := by
+    have hre : (((f 0 : ℂ) / s).re) = f 0 * s.re / Complex.normSq s := by
+      rw [Complex.div_re]
+      simp [div_eq_mul_inv]
+    calc
+      |(((f 0 : ℂ) / s).re)| = |f 0 * s.re| / Complex.normSq s := by
+        rw [hre, abs_div, abs_of_nonneg hnormSq_pos.le]
+      _ = |f 0| * |s.re| / Complex.normSq s := by
+        rw [abs_mul]
+      _ ≤ |f 0| * A / s.im ^ 2 := by
+        have hnum : |f 0| * |s.re| ≤ |f 0| * A :=
+          mul_le_mul_of_nonneg_left hA_re (abs_nonneg (f 0))
+        have hA_nonneg : 0 ≤ A :=
+          (abs_nonneg σ₀).trans (le_max_left |σ₀| |σ₁|)
+        exact div_le_div₀ (mul_nonneg (abs_nonneg (f 0)) hA_nonneg)
+          hnum hy_sq_pos hnormSq_ge_im
+  have hterm₂ :
+      |((laplaceTransform (fun u ↦ deriv (deriv f) u) s / s ^ 2).re)|
+        ≤ M * E * d / s.im ^ 2 := by
+    calc
+      |((laplaceTransform (fun u ↦ deriv (deriv f) u) s / s ^ 2).re)|
+          ≤ ‖laplaceTransform (fun u ↦ deriv (deriv f) u) s / s ^ 2‖ :=
+            Complex.abs_re_le_norm _
+      _ = ‖laplaceTransform (fun u ↦ deriv (deriv f) u) s‖ / ‖s‖ ^ 2 := by
+        rw [norm_div, norm_pow]
+      _ ≤ M * E * d / s.im ^ 2 := by
+        have hnum_nonneg : 0 ≤ M * E * d :=
+          mul_nonneg (mul_nonneg hM_nonneg hE_nonneg) hd.le
+        exact div_le_div₀ hnum_nonneg hF₂_bound hy_sq_pos hnorm_ge_im
+  have hmain :
+      |((laplaceTransform f s).re)| ≤
+        |f 0| * A / s.im ^ 2 + M * E * d / s.im ^ 2 := by
+    have hibp := laplaceTransform_ibp hd hf_C2 hf_supp hf_d hf_derivWithin_0
+      hf_derivWithin_d hs_ne
+    rw [hibp]
+    calc
+      |(((f 0 : ℂ) / s + laplaceTransform (fun u ↦ deriv (deriv f) u) s / s ^ 2).re)|
+          ≤ |(((f 0 : ℂ) / s).re)| +
+              |((laplaceTransform (fun u ↦ deriv (deriv f) u) s / s ^ 2).re)| := by
+            simpa [Complex.add_re] using
+              abs_add_le (((f 0 : ℂ) / s).re)
+                ((laplaceTransform (fun u ↦ deriv (deriv f) u) s / s ^ 2).re)
+      _ ≤ |f 0| * A / s.im ^ 2 + M * E * d / s.im ^ 2 :=
+        add_le_add hterm₁ hterm₂
+  calc
+    |(laplaceTransform f s).re|
+        ≤ |f 0| * A / s.im ^ 2 + M * E * d / s.im ^ 2 := hmain
+    _ = (|f 0| * A + M * E * d) / s.im ^ 2 := by
+      rw [add_div]
 
 @[blueprint
   "kadiri-re-inner-eq"
@@ -2555,7 +2714,7 @@ Assembled from \ref{kadiri-identity-16}, \ref{kadiri-re-inner-eq}, and
   (latexEnv := "proposition")
   (discussion := 1478)]
 theorem prop_2_1 {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
-    (hf_nonneg : ∀ t, 0 ≤ f t)
+    (_hf_nonneg : ∀ t, 0 ≤ f t)
     (hf_C2 : ContDiffOn ℝ 2 f (.Icc 0 d))
     (hf_supp : tsupport f ⊆ .Ico 0 d)
     (hf_d : f d = 0)
@@ -2572,9 +2731,9 @@ theorem prop_2_1 {d : ℝ} (hd : 0 < d) {f : ℝ → ℝ}
         - ∑' ρ : riemannZeta.zeroes_rect (.Ioo 0 1) .univ,
             (laplaceTransform f (s - ρ.val)).re
         + T2 f s := by
-  refine ⟨summable_lap_re_at_zeros hd hf_nonneg hf_C2 hf_supp hf_d hf_derivWithin_0
+  refine ⟨summable_lap_re_at_zeros hd hf_C2 hf_supp hf_d hf_derivWithin_0
       hf_derivWithin_d hf_secondWithin_d s, ?_⟩
-  rw [identity_16 hd hf_nonneg hf_C2 hf_supp hf_d hf_derivWithin_0 hf_derivWithin_d
+  rw [identity_16 hd hf_C2 hf_supp hf_d hf_derivWithin_0 hf_derivWithin_d
       hf_secondWithin_d hs, re_inner_eq hs]
   simp [T1, T2]
 
